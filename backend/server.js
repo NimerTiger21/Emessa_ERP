@@ -14,6 +14,10 @@ const laundryProcessRoutes = require("./routes/laundryProcessRoutes");
 const chemicalItemRoutes = require("./routes/chemicalItemRoutes");
 const stepItemRoutes = require("./routes/stepItemRoutes");
 
+const cookieParser = require('cookie-parser');
+
+const authRouter = require("./routes/auth");
+
 // Load environment variables
 dotenv.config();
 
@@ -27,7 +31,7 @@ app.use(cors());
 //   credentials: true
 // }));
 app.use(express.json());
-// app.use(cookieParser()); // Uncomment if cookies are required
+app.use(cookieParser()); // Uncomment if cookies are required
 
 // Connect to the database
 connectDB();
@@ -49,6 +53,8 @@ app.use("/api/master-data", require("./routes/masterDataRoutes"));
 // Serve static files (e.g., uploads)
 app.use("/uploads", express.static("uploads"));
 
+app.use("/api/v1/auth", authRouter);
+
 // Basic health check route
 app.get("/", (req, res) => {
   res.send("Defect Management API is running.");
@@ -57,5 +63,9 @@ app.get("/", (req, res) => {
 // Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
+  console.log(
+    `Server running in ${
+      process.env.NODE_ENV || "development"
+    } mode on port ${PORT}`
+  );
 });

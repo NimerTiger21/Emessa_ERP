@@ -29,6 +29,11 @@ export const fetchWashRecipes = async () => {
   }
 };
 
+/**
+ * Fetch a single wash recipe by ID
+ * @param {string} id - The ID of the wash recipe to fetch
+ * @returns {Promise<Object>} - The wash recipe data
+ */
 export const getWashRecipeById = async (washRecipsId) => {
   try {
     const response = await axios.get(`${API_URL}/${washRecipsId}`);
@@ -43,4 +48,38 @@ export const deleteWashRecipe = async (id) => {
   const res = await axios.delete(`${API_URL}/${id}`);
   toast.success(res.data.message);
   return res.data;
+};
+
+
+/**
+ * Update an existing wash recipe
+ * @param {string} id - The ID of the wash recipe to update
+ * @param {Object} recipeData - The updated wash recipe data
+ * @returns {Promise<Object>} - The response from the server
+ */
+export const updateWashRecipe = async (id, recipeData) => {
+  try {
+    
+    // const response = await fetch(`${process.env.REACT_APP_API_URL}/wash-recipes/${id}`, {
+    //   method: 'PUT',
+    //   headers: {
+    //     'Content-Type': 'application/json',
+    //     'Authorization': `Bearer ${localStorage.getItem('token')}`
+    //   },
+    //   body: JSON.stringify(recipeData)
+    // });
+    const response = await axios.put(`${API_URL}/${id}`, recipeData);
+    //console.log("Response from updateWashRecipe:", response);
+    
+    // if (!response.ok) {
+    //   const errorData = await response.data;
+    //   console.error('Error updating wash recipe:', errorData);
+    //   throw new Error(errorData.message || 'Failed to update wash recipe');
+    // }
+    toast.success(response.data.message);    
+    return response.data;
+  } catch (error) {
+    console.error('Error updating wash recipe:', error);
+    throw error;
+  }
 };

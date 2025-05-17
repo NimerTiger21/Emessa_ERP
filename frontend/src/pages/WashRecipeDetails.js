@@ -245,7 +245,7 @@ const WashRecipeDetails = () => {
               <strong>⏱ Time:</strong> {step.time} minutes
             </p>
             <p className="text-sm text-gray-600">
-              <strong>🌡 Temperature:</strong> {step.temperature}°C
+              <strong>🌡 Temperature:</strong> {step.temp}°C
             </p>
             <p className="text-sm text-gray-600">
               <strong>💧Liters:</strong> {step.liters}
@@ -328,7 +328,7 @@ const WashRecipeDetails = () => {
         {item.stepId && (
           <>
             <p>⏱ Time: {item.time} minutes</p>
-            <p>🌡 Temperature: {item.temperature}°C</p>
+            <p>🌡 Temperature: {item.temp}°C</p>
             <p>💧 Liters: {item.liters}</p>
             {item.chemicals?.length > 0 && (
               <div className="mt-2">

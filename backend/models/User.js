@@ -1,120 +1,59 @@
-const mongoose = require("mongoose");
-const Joi = require("joi");
-const passwordComplexity = require("joi-password-complexity");
-const jwt = require("jsonwebtoken");
-// User Schema
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+
 const UserSchema = new mongoose.Schema({
-    username:{
-        type: String,
-        required: true,
-        trim: true,
-        minlenght: 2,
-        maxlenght: 100,
-    },
-    email:{
-        type: String,
-        required: true,
-        trim: true,
-        minlenght: 5,
-        maxlenght: 100,
-        unique: true,
-    },
-    password:{
-        type: String,
-        required: true,
-        trim: true,
-        minlenght: 8,
-    },
-    profilePhoto:{
-        type: Object,
-        default: {
-            url: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_640.png",
-            publicId: null,
-        }
-    },
-    bio: String,
-    isAdmin: {
-        type: Boolean,
-        default: false,
-    },
-    isAccountVerified: {
-        type: Boolean,
-        default: false,
-    },
-    //posts[] // virtual
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+  name: { type: String, required: true },
+  email: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    match: [/^\w+([\.-]?\w+)*@emessadenim\.com$/, 'Please use a company email']
+  },
+  password: { type: String, required: true, select: false },
+  role: { 
+    type: String, 
+    enum: ['admin', 'quality_manager', 'production_manager', 'wash_supervisor', 'operator'],
+    default: 'operator'
+  },
+  department: {
+    type: String,
+    enum: ['production', 'sewing', 'washing', 'finishing', 'quality', 'admin'],
+    required: true
+  },
+  lastLogin: Date,
+  active: { type: Boolean, default: true },
+  avatar: String,
+
+  // ... existing fields ...
+  emailVerified: {
+    type: Boolean,
+    default: false
+  },
+  verificationToken: String,
+  verificationTokenExpires: Date,
+  passwordResetToken: String,
+  passwordResetExpires: Date,
+  lastLogin: Date,
+}, { timestamps: true });
+
+// Password hashing middleware
+UserSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  this.password = await bcrypt.hash(this.password, 12);
+  next();
 });
 
-// Populate Posts That Belongs To This User When he/she Get his/her Profile
-UserSchema.virtual("posts", {
-    ref: "Post",
-    foreignField: "user",
-    localField: "_id",
-    //justOne: false,
-});
+// Password comparison method
+UserSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
 
-// Generate Auth Token
-UserSchema.methods.generateAuthToken = function(){
-    return jwt.sign({id: this._id, isAdmin: this.isAdmin},process.env.JWT_SECRET);
-}
+// Filter sensitive data when converting to JSON
+UserSchema.methods.toJSON = function() {
+  const user = this.toObject();
+  delete user.password;
+  delete user.__v;
+  return user;
+};
 
-// User Model
-const User = mongoose.model("User", UserSchema);
-
-// Validate Register User
-function validateRegisterUser(obj) {
-    const schema = Joi.object({
-        username: Joi.string().trim().min(2).max(100).required(),
-        email: Joi.string().trim().min(5).max(100).required().email(),
-        //password: Joi.string().trim().min(8).required(),
-        password: passwordComplexity().required(),
-
-    });
-    return schema.validate(obj);
-}
-
-// Validate Login User
-function validateLoginUser(obj) {
-    const schema = Joi.object({
-        email: Joi.string().trim().min(5).max(100).required().email(),
-        password: Joi.string().trim().min(8).required(),
-    });
-    return schema.validate(obj);
-}
-// Validate Update User
-function validateUpdateUser(obj) {
-    const schema = Joi.object({
-        username: Joi.string().trim().min(2).max(100),
-        //password: Joi.string().trim().min(8),
-        password: passwordComplexity(),
-        bio : Joi.string(),
-    });
-    return schema.validate(obj);
-}
-
-// Validate Email
-function validateEmail(obj) {
-    const schema = Joi.object({
-        email: Joi.string().trim().min(5).max(100).required().email(),
-    });
-    return schema.validate(obj);
-}
-// Validate New Password
-function validateNewPassword(obj) {
-    const schema = Joi.object({
-        //password: Joi.string().trim().min(8).required(),
-        password: passwordComplexity().required(),
-    });
-    return schema.validate(obj);
-}
-module.exports = {
-    User,
-    validateRegisterUser,
-    validateLoginUser,
-    validateUpdateUser,
-    validateEmail,
-    validateNewPassword,
- };
+module.exports = mongoose.model('User', UserSchema);

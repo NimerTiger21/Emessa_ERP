@@ -4,7 +4,12 @@ import { fetchWashRecipes, deleteWashRecipe } from "../services/washService";
 import { toast } from "react-toastify";
 import { useStateContext } from "../contexts/ContextProvider";
 import { darkenColor } from "../utils/darkenColor";
-import { MdEdit, MdDelete, MdContentPasteSearch } from "react-icons/md";
+import {
+  MdEdit,
+  MdDelete,
+  MdContentPasteSearch,
+  MdContentCopy,
+} from "react-icons/md";
 import ConfirmationModal from "../components/ConfirmationModal";
 import Spinner from "../components/Spinner";
 
@@ -35,36 +40,49 @@ const WashRecipeList = () => {
     setIsLoading(false);
   }, []);
 
-   // Open Confirmation Modal for Deletion
-    const openDeleteConfirm = (id) => {
-      setDeleteId(id);
-      setIsConfirmOpen(true);
-    };
-  
-    // Confirm Order Deletion
-    const handleConfirmDelete = async () => {
-      try {
-        await deleteWashRecipe(deleteId);
-        //toast.success("Recipe deleted successfully.");
-        loadRecipes(); // Refresh list
-      } catch (error) {
-        toast.error("Failed to delete recipe.");
-      } finally {
-        setIsConfirmOpen(false); // Close confirmation modal
-      }
-    };
+  // Handle Edit - Navigate to edit page with recipe ID
+  const handleEdit = (recipeId) => {
+    navigate(`/wash-recipes/edit/${recipeId}`);
+  };
 
-  const filteredRecipes = washRecipes.filter((recipe) =>
-    recipe.orderId?.orderNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    recipe.washCode?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Open Confirmation Modal for Deletion
+  const openDeleteConfirm = (id) => {
+    setDeleteId(id);
+    setIsConfirmOpen(true);
+  };
+
+  // Confirm Recipe Deletion
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteWashRecipe(deleteId);
+      //toast.success("Recipe deleted successfully.");
+      loadRecipes(); // Refresh list
+    } catch (error) {
+      toast.error("Failed to delete recipe.");
+    } finally {
+      setIsConfirmOpen(false); // Close confirmation modal
+    }
+  };
+
+
+  // Add the handleClone function in the WashRecipeList component:
+const handleClone = (recipeId) => {
+  navigate(`/wash-recipes/clone/${recipeId}`);
+};
+
+  const filteredRecipes = washRecipes.filter(
+    (recipe) =>
+      recipe.orderId?.orderNo
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      recipe.washCode?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  console.log(filteredRecipes);
 
   const closeConfirm = () => setIsConfirmOpen(false);
-  
-    if (isLoading) {
-      return <Spinner />;
-    }
+
+  if (isLoading) {
+    return <Spinner />;
+  }
 
   return (
     <div className="p-6 bg-gray-100 min-h-screen">
@@ -94,6 +112,7 @@ const WashRecipeList = () => {
             <tr>
               <th className="p-3 text-left">Wash Code</th>
               <th className="p-3 text-left">Order No</th>
+              <th className="p-3 text-left">Order Season</th>
               <th className="p-3 text-left">Style</th>
               <th className="p-3 text-left">Fabric Art</th>
               <th className="p-3 text-left">Wash Type</th>
@@ -107,25 +126,56 @@ const WashRecipeList = () => {
                 <tr key={recipe._id} className="border-t hover:bg-gray-50">
                   <td className="p-3">{recipe.washCode || "N/A"}</td>
                   <td className="p-3">{recipe.orderId?.orderNo || "N/A"}</td>
-                  <td className="p-3">{recipe.orderId?.style?.name || "N/A"}</td>
+                  <td className="p-3">{recipe.orderId?.season || "N/A"}</td>
+                  <td className="p-3">
+                    {recipe.orderId?.style?.name || "N/A"}
+                  </td>
                   <td className="p-3">{recipe.orderId?.articleNo || "N/A"}</td>
                   <td className="p-3">
-                    <span className={`px-2 py-1 rounded text-sm ${washTypeColors[recipe.washType] || "bg-gray-100"}`}>
+                    <span
+                      className={`px-2 py-1 rounded text-sm ${
+                        washTypeColors[recipe.washType] || "bg-gray-100"
+                      }`}
+                    >
                       {recipe.washType || "N/A"}
                     </span>
                   </td>
-                  <td className="p-3">{new Date(recipe.date).toLocaleDateString()}</td>
+                  <td className="p-3">
+                    {new Date(recipe.date).toLocaleDateString()}
+                  </td>
                   <td className="p-3 flex items-center gap-2">
-                    <button onClick={() => navigate(`/wash-recipes/${recipe._id}`)} className="text-blue-600 hover:text-blue-800">
-                      <MdContentPasteSearch className="w-5 h-5" />
+                    <button
+                      onClick={() => navigate(`/wash-recipes/${recipe._id}`)}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <MdContentPasteSearch
+                        className="w-5 h-5"
+                        title="View Wash Recipe"
+                      />
                     </button>
-                    <button 
-                    //onClick={() => navigate(`/wash-recipes/edit/${recipe._id}`)} 
-                    className="text-green-600 hover:text-green-800">
-                      <MdEdit className="w-5 h-5" />
+                    <button
+                      onClick={() => handleEdit(recipe._id)}
+                      className="text-green-600 hover:text-green-800"
+                    >
+                      <MdEdit className="w-5 h-5" title="Edit Wash Recipe" />
                     </button>
-                    <button onClick={() => openDeleteConfirm(recipe._id)} className="text-red-600 hover:text-red-800">
-                      <MdDelete className="w-5 h-5" />
+                    <button
+                      onClick={() => openDeleteConfirm(recipe._id)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <MdDelete
+                        className="w-5 h-5"
+                        title="Delete Wash Recipe"
+                      />
+                    </button>
+                    <button
+                      onClick={() => handleClone(recipe._id)}
+                      className="text-purple-600 hover:text-purple-800"
+                    >
+                      <MdContentCopy
+                        className="w-5 h-5"
+                        title="Clone Wash Recipe"
+                      />
                     </button>
                   </td>
                 </tr>
@@ -143,7 +193,7 @@ const WashRecipeList = () => {
       {/* Confirmation Modal */}
       {isConfirmOpen && (
         <ConfirmationModal
-          message="Are you sure you want to delete this order?"
+          message="Are you sure you want to delete this wash recipe?"
           onConfirm={handleConfirmDelete}
           onCancel={closeConfirm}
         />

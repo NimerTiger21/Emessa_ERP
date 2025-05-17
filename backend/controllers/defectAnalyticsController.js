@@ -91,3 +91,97 @@ exports.getDefectRate = async (req, res) => {
     });
   }
 };
+
+
+
+
+/**
+ * Get wash recipe defect analytics
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+exports.getWashRecipeDefectAnalytics = async (req, res) => {
+  try {
+    // Extract filters from query parameters
+    const filters = {
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+      severity: req.query.severity,
+      status: req.query.status,
+      washType: req.query.washType
+    };
+    
+    const analytics = await analyticsService.getWashRecipeDefectAnalytics(filters);
+    
+    res.status(200).json({
+      success: true,
+      data: analytics
+    });
+  } catch (error) {
+    console.error('Error in getWashRecipeDefectAnalytics controller:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch wash recipe defect analytics'
+    });
+  }
+};
+
+
+
+exports.getWashRecipeDefectAnalytics2 = async (req, res) => {
+  try {
+    // Extract filters from query parameters
+    const filters = {
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+      severity: req.query.severity,
+      status: req.query.status,
+      washType: req.query.washType
+    };
+    
+    const analytics = await analyticsService.getWashRecipeDefectAnalytics2(filters);
+    
+    res.status(200).json({
+      success: true,
+      data: analytics
+    });
+  } catch (error) {
+    console.error('Error in getWashRecipeDefectAnalytics controller:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch wash recipe defect analytics'
+    });
+  }
+};
+
+
+/**
+ * Get defect comparison data
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+exports.getComparisonData = async (req, res) => {
+  try {
+    // Extract filters from query parameters
+    const filters = {
+      comparisonType: req.query.comparisonType,
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+      severity: req.query.severity,
+      metric: req.query.metric
+    };
+    
+    const comparisonData = await analyticsService.getComparisonData(filters);
+    
+    res.status(200).json({
+      success: true,
+      data: comparisonData
+    });
+  } catch (error) {
+    console.error('Error in getComparisonData controller:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch comparison data'
+    });
+  }
+};

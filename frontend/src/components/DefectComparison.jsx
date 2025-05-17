@@ -13,7 +13,8 @@ import {
   ArrowUpDown,
   Share2,
   TrendingUp,
-  Info
+  Info,
+  Calendar
 } from 'lucide-react';
 import { getComparisonData } from '../services/defectAnalyticsApiService';
 
@@ -31,7 +32,8 @@ const DefectComparison = () => {
   const [comparisonData, setComparisonData] = useState(null);
   const [filters, setFilters] = useState({
     comparisonType: 'fabric-vs-style',
-    timeFrame: 'last-6-months',
+    startDate: '',
+    endDate: '',
     severity: ''
   });
   const [filterVisible, setFilterVisible] = useState(false);
@@ -39,28 +41,41 @@ const DefectComparison = () => {
   const [selectedKey, setSelectedKey] = useState(null);
 
   useEffect(() => {
+    // Set default date range for last 6 months on component mount
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - 6);
+    
+    setFilters(prev => ({
+      ...prev,
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0]
+    }));
+    
     fetchComparisonData();
   }, []);
 
   const fetchComparisonData = async () => {
     setLoading(true);
     try {
-      // In a real implementation, this would fetch from API
-      // const data = await getComparisonData(filters);
-      
-      // Mock data for demonstration
-      const mockData = generateMockData(filters.comparisonType);
-      setComparisonData(mockData);
+      // Call the API to get real comparison data
+      const data = await getComparisonData(filters);
+      console.log("Comparison data fetched:", data);
+      setComparisonData(data);
       setError(null);
     } catch (err) {
       console.error("Error fetching comparison data:", err);
       setError("Failed to load comparison data. Please try again later.");
+      
+      // Fallback to mock data if API fails
+      const mockData = generateMockData(filters.comparisonType);
+      setComparisonData(mockData);
     } finally {
       setLoading(false);
     }
   };
 
-  // Generate mock data based on comparison type
+  // Generate mock data based on comparison type (as a fallback)
   const generateMockData = (comparisonType) => {
     switch (comparisonType) {
       case 'fabric-vs-style':
@@ -187,6 +202,16 @@ const DefectComparison = () => {
   const formatTooltipValue = (value, name) => {
     if (name === 'defectRate') return `${value}%`;
     return value;
+  };
+
+  // Format date for display
+  const formatDateRange = () => {
+    if (!filters.startDate || !filters.endDate) return 'All Time';
+    
+    const startDate = new Date(filters.startDate);
+    const endDate = new Date(filters.endDate);
+    
+    return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
   };
 
   // Custom tooltip for scatter chart
@@ -356,7 +381,7 @@ const DefectComparison = () => {
                   </YAxis>
                   <Tooltip />
                   <Legend />
-                  <Bar yAxisId="left" dataKey="defectRate" name="Defect Rate (%)" fill="#f59e0b" />
+                  <Bar yAxisId="left" dataKey="defectRatio" name="Defect Rate (%)" fill="#f59e0b" />
                   <Bar yAxisId="right" dataKey="defectCount" name="Defect Count" fill="#8b5cf6" />
                 </BarChart>
               </ResponsiveContainer>
@@ -438,15 +463,20 @@ const DefectComparison = () => {
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart 
                   data={comparisonData.defectTypeData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 50 }}
                   layout="vertical"
                 >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" width={80} />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    width={150}
+                    tick={{ fontSize: 11 }}
+                  />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="defectRate" name="Defect Rate (%)" fill="#06b6d4" />
+                  <Bar dataKey="defectRate" name="Defect Rate (%)" fill="#ec4899" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -455,236 +485,146 @@ const DefectComparison = () => {
       );
     } else if (filters.comparisonType === 'time-vs-severity') {
       return (
-        <>
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 h-96">
-            <h3 className="text-lg font-medium text-gray-800 mb-4">Defect Severity Trends Over Time</h3>
-            <ResponsiveContainer width="100%" height="90%">
-              <ComposedChart
-                data={comparisonData.timeSeriesData}
-                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 h-96">
+          <h3 className="text-lg font-medium text-gray-800 mb-4">Defect Severity Over Time</h3>
+          <ResponsiveContainer width="100%" height="90%">
+            <ComposedChart
+              data={comparisonData.timeSeriesData}
+              margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis 
+                yAxisId="left"
+                orientation="left"
+                stroke="#4f46e5"
               >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis>
-                  <Label value="Defect Count" angle={-90} position="left" offset={-15} />
-                </YAxis>
-                <Tooltip content={<CustomTimeTooltip />} />
-                <Legend />
-                <Bar dataKey="low" stackId="a" name="Low Severity" fill="#10b981" />
-                <Bar dataKey="medium" stackId="a" name="Medium Severity" fill="#f59e0b" />
-                <Bar dataKey="high" stackId="a" name="High Severity" fill="#ef4444" />
-                <Line type="monotone" dataKey="total" stroke="#4f46e5" name="Total Defects" strokeWidth={2} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            {comparisonData.severityTrends.map((item, index) => (
-              <div key={index} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                <h3 className={`text-lg font-medium mb-2 ${
-                  item.severity === 'High' ? 'text-red-600' : 
-                  item.severity === 'Medium' ? 'text-yellow-600' : 'text-green-600'
-                }`}>
-                  {item.severity} Severity Defects
-                </h3>
-                <div className="flex items-center justify-between">
-                  <div className="text-3xl font-bold text-gray-800">{item.count}</div>
-                  <div className={`flex items-center ${
-                    item.trend.startsWith('+') ? 'text-red-600' : 'text-green-600'
-                  }`}>
-                    {item.trend.startsWith('+') ? (
-                      <TrendingUp className="h-5 w-5 mr-1" />
-                    ) : (
-                      <TrendingUp className="h-5 w-5 mr-1 transform rotate-180" />
-                    )}
-                    {item.trend}
-                  </div>
-                </div>
-                <div className="mt-2 text-sm text-gray-500">
-                  {item.severity === 'High' ? 'Critical issues requiring immediate attention' : 
-                   item.severity === 'Medium' ? 'Significant issues affecting product quality' : 
-                   'Minor issues with minimal impact'}
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
+                <Label value="Defect Count" angle={-90} position="left" />
+              </YAxis>
+              <YAxis 
+                yAxisId="right"
+                orientation="right"
+                stroke="#10b981"
+              >
+                <Label value="Defect Rate (%)" angle={90} position="right" />
+              </YAxis>
+              <Tooltip content={<CustomTimeTooltip />} />
+              <Legend />
+              <Bar yAxisId="left" dataKey="low" name="Low Severity" fill="#10b981" />
+              <Bar yAxisId="left" dataKey="medium" name="Medium Severity" fill="#f59e0b" />
+              <Bar yAxisId="left" dataKey="high" name="High Severity" fill="#ef4444" />
+              <Line yAxisId="right" type="monotone" dataKey="total" name="Total Defects" stroke="#4f46e5" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
       );
     }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center p-12">
-        <div className="text-center">
-          <Loader className="h-10 w-10 text-indigo-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading comparison data...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex justify-center items-center p-12">
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md max-w-lg w-full">
-          <div className="flex">
-            <AlertCircle className="h-6 w-6 text-red-500 mr-3" />
-            <div>
-              <p className="text-red-700 font-medium">Error Loading Comparison Data</p>
-              <p className="text-red-600 mt-1">{error}</p>
-              <button 
-                className="mt-3 bg-red-100 text-red-800 px-4 py-2 rounded-md text-sm flex items-center"
-                onClick={fetchComparisonData}
-              >
-                <RefreshCcw className="h-4 w-4 mr-2" />
-                Retry
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen p-4 lg:p-6">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Defect Comparison Analysis</h1>
-          <p className="text-gray-500 mt-1">
-            Compare relationships between different defect metrics and manufacturing variables
-          </p>
-        </div>
-        
-        <div className="flex flex-col sm:flex-row mt-4 lg:mt-0 space-y-2 sm:space-y-0 sm:space-x-2 w-full lg:w-auto">
-          <button 
-            className="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center shadow-sm"
-            onClick={() => setFilterVisible(!filterVisible)}
-          >
-            <Filter className="h-4 w-4 mr-2" />
-            Filters
-          </button>
-          
-          <button 
-            className="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center shadow-sm"
-            onClick={fetchComparisonData}
-          >
-            <RefreshCcw className="h-4 w-4 mr-2" />
-            Refresh
-          </button>
-          
-          <button 
-            className="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center shadow-sm"
-            onClick={() => alert('Exporting data...')}
-            >
-            <Download className="h-4 w-4 mr-2" />
-            Export
-            </button>
-            <button
-            className="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center shadow-sm"
-            onClick={() => alert('Sharing data...')}
-            >
-            <Share2 className="h-4 w-4 mr-2" />
-            Share
-            </button>
-        </div>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-semibold text-gray-800">Defect Comparison</h2>
+        <button 
+          className="bg-indigo-600 text-white px-4 py-2 rounded-md flex items-center"
+          onClick={() => setFilterVisible(!filterVisible)}
+        >
+          <Filter size={16} className="mr-2" /> Filter
+        </button>
       </div>
-          
-        
-        {/* Filters */}
-        {filterVisible && (
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 mb-6">
-            <h3 className="text-lg font-medium text-gray-800 mb-4">Filters</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center space-x-2 mb-4">
-                <label htmlFor="comparisonType" className="text-sm font-medium text-gray-700">Comparison Type:</label>
-                <select 
-                  id="comparisonType" 
-                  name="comparisonType" 
-                  value={filters.comparisonType} 
-                  onChange={handleFilterChange} 
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-indigo-500"
-                >
-                  <option value="fabric-vs-style">Fabric vs Style</option>
-                  <option value="composition-vs-defect">Composition vs Defect</option>
-                  <option value="time-vs-severity">Time vs Severity</option>
-                </select>
-              </div>
-              
-              <div className="flex items-center space-x-2 mb-4">
-                <label htmlFor="timeFrame" className="text-sm font-medium text-gray-700">Time Frame:</label>
-                <select 
-                  id="timeFrame" 
-                  name="timeFrame" 
-                  value={filters.timeFrame} 
-                  onChange={handleFilterChange} 
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-indigo-500"
-                >
-                  <option value="last-week">Last Week</option>
-                  <option value="last-month">Last Month</option>
-                  <option value="last-3-months">Last 3 Months</option>
-                  <option value="last-6-months">Last 6 Months</option>
-                </select>
-              </div>
 
-              <div className="flex items-center space-x-2 mb-4">
-                <label htmlFor="severity" className="text-sm font-medium text-gray-700">Severity:</label>
-                <select 
-                  id="severity" 
-                  name="severity" 
-                  value={filters.severity} 
-                  onChange={handleFilterChange}
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-indigo-500"
-                >
-                    <option value="">All</option>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                </select>
-              </div>
-
-                <div className="flex items-center space-x-2 mb-4">
-                <label htmlFor="metric" className="text-sm font-medium text-gray-700">Metric:</label>
-                <select 
-                  id="metric" 
-                  name="metric" 
-                  value={selectedMetric} 
-                  onChange={(e) => setSelectedMetric(e.target.value)} 
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-indigo-500"
-                >
-                  <option value="defect-rate">Defect Rate</option>
-                  <option value="defect-count">Defect Count</option>
-
-                    <option value="severity">Severity</option>
-                    <option value="trend">Trend</option>
-                </select>
-                </div>
+      {filterVisible && (
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 mb-6">
+          <h3 className="text-lg font-medium text-gray-800 mb-4">Filters</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label htmlFor="comparisonType" className="block text-sm font-medium text-gray-700">Comparison Type</label>
+              <select 
+                id="comparisonType" 
+                name="comparisonType" 
+                value={filters.comparisonType} 
+                onChange={handleFilterChange} 
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="fabric-vs-style">Fabric vs Style</option>
+                <option value="composition-vs-defect">Composition vs Defect</option>
+                <option value="time-vs-severity">Time vs Severity</option>
+              </select>
             </div>
-            <div className="flex justify-end mt-4">
+            <div>
+              <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">Start Date</label>
+              <input 
+                type="date" 
+                id="startDate" 
+                name="startDate" 
+                value={filters.startDate} 
+                onChange={handleFilterChange} 
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">End Date</label>
+              <input
+                type="date" 
+                id="endDate" 
+                name="endDate" 
+                value={filters.endDate} 
+                onChange={handleFilterChange} 
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div className="col-span-1 md:col-span-3 flex justify-end mt-4">
               <button 
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700"
+                className="bg-indigo-600 text-white px-4 py-2 rounded-md flex items-center"
                 onClick={handleApplyFilters}
               >
-                Apply Filters
+                <RefreshCcw size={16} className="mr-2" /> Apply Filters
               </button>
             </div>
           </div>
-        )}
-        {/* Comparison Chart */}
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-          {renderComparisonChart()}
         </div>
-        <div className="mt-6">
+      )}
+      {loading ? (
+        <div className="flex items-center justify-center h-96">
+          <Loader size={32} className="text-indigo-600 animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+          <AlertCircle size={16} className="inline-block mr-2" />
+          <span className="block sm:inline">{error}</span>
+        </div>
+      ) : (
+        <div className="mb-6">
+          {renderComparisonChart()}
+          <div className="mt-6">
             <h3 className="text-lg font-medium text-gray-800 mb-4">Insights</h3>
             <ul className="list-disc list-inside space-y-2">
-                {comparisonData.insights.map((insight, index) => (
+              {/* {comparisonData.insights.map((insight, index) => (
                 <li key={index} className="text-gray-600">{insight}</li>
-                ))}
+              ))} */}
             </ul>
+          </div>
         </div>
+      )}
+      <div className="flex justify-end space-x-4">
+        <button className="bg-gray-200 text-gray-800 px-4 py-2 rounded-md flex items-center">
+          <Download size={16} className="mr-2" /> Download Report
+        </button>
+        <button className="bg-gray-200 text-gray-800 px-4 py-2 rounded-md flex items-center">
+          <Share2 size={16} className="mr-2" /> Share
+        </button>
+        <button className="bg-gray-200 text-gray-800 px-4 py-2 rounded-md flex items-center">
+          <TrendingUp size={16} className="mr-2" /> View Trends
+        </button>
+        <button className="bg-gray-200 text-gray-800 px-4 py-2 rounded-md flex items-center">
+          <Info size={16} className="mr-2" /> More Info
+        </button>
+        <button className="bg-gray-200 text-gray-800 px-4 py-2 rounded-md flex items-center">
+          <Calendar size={16} className="mr-2" /> Date Range
+        </button>
+      </div>
     </div>
-    );
+  );
 }
+
 export default DefectComparison;

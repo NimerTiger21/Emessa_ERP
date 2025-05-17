@@ -59,7 +59,7 @@ exports.createWashRecipe = async (req, res) => {
    washRecipeId: washRecipe._id,
    stepId: step.stepId,
    time: step.time,
-   temperature: step.temp,
+   temp: step.temp,
    liters: step.liters,
    sequence: step.sequence,
    chemicals: step.chemicals,
@@ -129,7 +129,7 @@ if (invalidStep) {
       const recipeItem = new RecipeItem({
         stepId: step.stepId, // Temporary stepId
         time: step.time,
-        temperature: step.temp,
+        temp: step.temp,
         liters: step.liters,
         sequence: step.sequence,
         washRecipeId: washRecipe._id, // Link step to the wash recipe
@@ -147,20 +147,20 @@ if (invalidStep) {
       //washRecipe.steps = savedRecipeItem;
       washRecipe.steps.push(savedRecipeItem._id); // Push the new RecipeItem ID into the array
       //await washRecipe.save();
-      console.log('Saving*** ', step?.chemicals?.length, ' ****chemicals');
-      console.log('Saving@@@ ', step?.chemicals, ' @@@chemicals');
+      //console.log('Saving*** ', step?.chemicals?.length, ' ****chemicals');
+      //console.log('Saving@@@ ', step?.chemicals, ' @@@chemicals');
 
       // Save chemicals for this step
       if (step.chemicals && step.chemicals.length > 0) {
-        console.log('Saving ', step.chemicals.length, 'chemicals');
-        console.log('Saving***** ', step.chemicals, 'chemicals');
+        //console.log('Saving ', step.chemicals.length, 'chemicals');
+        //console.log('Saving***** ', step.chemicals, 'chemicals');
         const stepItems = step.chemicals.map((chemical) => ({
           recipeItemId: recipeItem._id, // Link chemical to the step item | // Map to the new database _id
           chemicalItemId: chemical.chemicalItemId,
           quantity: chemical.quantity,
           unit: chemical.unit,
         }));
-        console.log("stepItems: ", stepItems);
+        //console.log("stepItems: ", stepItems);
 
         const savedChemicals = await StepItem.insertMany(stepItems);
         savedStepItems.push(...savedChemicals.map((item) => item._id));
@@ -327,6 +327,8 @@ exports.getWashRecipeDetailsById = async (req, res) => {
   const chemicalsByStep = stepItems.reduce((acc, item) => {
     if (!acc[item.recipeItemId]) acc[item.recipeItemId] = [];
     acc[item.recipeItemId].push({
+      id: item._id,
+      chemicalItemId: item.chemicalItemId._id,
       name: item.chemicalItemId.name,
       unit: item.chemicalItemId.unit,
       supplier: item.chemicalItemId.supplier,
@@ -393,4 +395,433 @@ exports.deleteWashRecipe  = async (req, res) => {
   }
 };
 
+exports.updateWashRecipe = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { orderId, date, washCode, washType, workspaceItems } = req.body;
+    const normalizedWashCode = washCode === "" ? null : washCode;
 
+    const washRecipe = await WashRecipe.findById(id);
+    if (!washRecipe) {
+      return res.status(404).json({ message: "Wash recipe not found." });
+    }
+
+    if (normalizedWashCode && normalizedWashCode !== washRecipe.washCode) {
+      const existingRecipe = await WashRecipe.findOne({ 
+        washCode: normalizedWashCode,
+        _id: { $ne: id }
+      });
+      if (existingRecipe) {
+        return res.status(400).json({ message: "Wash Code already exists." });
+      }
+    }
+
+    const existingRecipeItems = await RecipeItem.find({ washRecipeId: id });
+    const existingRecipeItemMap = new Map();
+    existingRecipeItems.forEach(item => {
+      existingRecipeItemMap.set(item._id.toString(), item);
+    });
+
+    const existingStepItems = await StepItem.find({ 
+      recipeItemId: { $in: existingRecipeItems.map(item => item._id) } 
+    });
+
+    const existingChemicalsByRecipeItem = new Map();
+    existingStepItems.forEach(chemical => {
+      const recipeItemId = chemical.recipeItemId.toString();
+      if (!existingChemicalsByRecipeItem.has(recipeItemId)) {
+        existingChemicalsByRecipeItem.set(recipeItemId, new Map());
+      }
+      existingChemicalsByRecipeItem
+        .get(recipeItemId)
+        .set(chemical.chemicalItemId.toString(), chemical);
+    });
+
+    await WashRecipe.findByIdAndUpdate(id, { 
+      orderId, date, washCode: normalizedWashCode, washType
+    });
+
+    const newStepIds = [];
+    const newProcessIds = [];
+    const recipeItemsToDelete = new Set(existingRecipeItems.map(item => item._id.toString()));
+
+    const steps = workspaceItems.filter(item => item.type === "step");
+
+    for (const step of steps) {
+      let recipeItem;
+      const isExisting = step._id && existingRecipeItemMap.has(step._id.toString());
+
+      if (isExisting) {
+        recipeItem = existingRecipeItemMap.get(step._id.toString());
+        recipeItemsToDelete.delete(step._id.toString());
+
+        recipeItem.stepId = step.stepId;
+        recipeItem.time = step.time;
+        recipeItem.temp = step.temp;
+        recipeItem.liters = step.liters;
+        recipeItem.sequence = step.sequence;
+
+        await recipeItem.save();
+      } else {
+        recipeItem = new RecipeItem({
+          washRecipeId: id,
+          stepId: step.stepId,
+          time: step.time,
+          temp: step.temp,
+          liters: step.liters,
+          sequence: step.sequence
+        });
+        await recipeItem.save();
+      }
+
+      newStepIds.push(recipeItem._id);
+
+      const existingChemicalsMap = existingChemicalsByRecipeItem.get(recipeItem._id.toString()) || new Map();
+      const updatedChemicalItemIds = new Set();
+
+      const submittedChemicals = Array.isArray(step.chemicals) ? step.chemicals : [];
+
+      for (const chemical of submittedChemicals) {
+        if (!chemical.chemicalItemId || !mongoose.Types.ObjectId.isValid(chemical.chemicalItemId)) {
+          continue;
+        }
+
+        const chemIdStr = chemical.chemicalItemId.toString();
+        updatedChemicalItemIds.add(chemIdStr);
+
+        if (existingChemicalsMap.has(chemIdStr)) {
+          const existingChemical = existingChemicalsMap.get(chemIdStr);
+          existingChemical.quantity = chemical.quantity || 0;
+          existingChemical.unit = chemical.unit || "";
+          await existingChemical.save();
+        } else {
+          const newChemical = new StepItem({
+            recipeItemId: recipeItem._id,
+            chemicalItemId: chemIdStr,
+            quantity: chemical.quantity || 0,
+            unit: chemical.unit || ""
+          });
+          await newChemical.save();
+        }
+      }
+
+      for (const [existingChemId, existingChemObj] of existingChemicalsMap.entries()) {
+        if (!updatedChemicalItemIds.has(existingChemId)) {
+          await StepItem.findByIdAndDelete(existingChemObj._id);
+        }
+      }
+    }
+
+    const processes = workspaceItems.filter(item => item.type === "process");
+
+    await RecipeProcess.deleteMany({ washRecipeId: id });
+    if (processes.length > 0) {
+      const processesToCreate = processes.map((process, index) => ({
+        washRecipeId: id,
+        laundryProcessId: process.laundryProcessId,
+        recipeProcessType: process.processType || process.recipeProcessType || "",
+        remark: process.remark || "",
+        sequence: index + 1
+      }));
+      const savedProcesses = await RecipeProcess.insertMany(processesToCreate);
+      newProcessIds.push(...savedProcesses.map(p => p._id));
+    }
+
+    if (recipeItemsToDelete.size > 0) {
+      await RecipeItem.deleteMany({ _id: { $in: Array.from(recipeItemsToDelete) } });
+      await StepItem.deleteMany({ recipeItemId: { $in: Array.from(recipeItemsToDelete) } });
+    }
+
+    await WashRecipe.findByIdAndUpdate(id, {
+      steps: newStepIds,
+      recipeProcessId: newProcessIds
+    });
+
+    const updatedWashRecipe = await WashRecipe.findById(id)
+      .populate({
+        path: "orderId",
+        select: "orderNo season style fabric fabricSupplier keyNo orderQty orderDate articleNo",
+        populate: {
+          path: "style",
+          select: "name styleNo"
+        }
+      })
+      .populate({
+        path: "recipeProcessId",
+        populate: {
+          path: "laundryProcessId",
+          select: "name recipeProcessType"
+        }
+      });
+
+    res.status(200).json({ message: "Wash recipe updated successfully.", washRecipe: updatedWashRecipe });
+  } catch (error) {
+    console.error("Error updating wash recipe:", error);
+    res.status(500).json({ message: "Failed to update wash recipe.", error: error.message });
+  }
+};
+//   try {
+//     const { id } = req.params;
+//     const { orderId, date, washCode, washType, workspaceItems } = req.body;
+//     const normalizedWashCode = washCode === "" ? null : washCode;
+
+//     // Find the wash recipe to update
+//     const washRecipe = await WashRecipe.findById(id);
+//     if (!washRecipe) {
+//       return res.status(404).json({ message: "Wash recipe not found." });
+//     }
+
+//     // Check if the wash code is unique (if provided and changed)
+//     if (normalizedWashCode && normalizedWashCode !== washRecipe.washCode) {
+//       const existingRecipe = await WashRecipe.findOne({ 
+//         washCode: normalizedWashCode,
+//         _id: { $ne: id } // Exclude current recipe
+//       });
+      
+//       if (existingRecipe) {
+//         return res.status(400).json({ message: "Wash Code already exists." });
+//       }
+//     }
+
+//     // Get existing recipe items and build a map for quick lookup
+//     const existingRecipeItems = await RecipeItem.find({ washRecipeId: id });
+//     const existingRecipeItemMap = new Map();
+    
+//     // Map recipe items by their ID for easy lookup
+//     existingRecipeItems.forEach(item => {
+//       existingRecipeItemMap.set(item._id.toString(), item);
+//     });
+
+//     // Get existing chemicals and build a map for quick lookup
+//     const existingStepItems = await StepItem.find({ 
+//       recipeItemId: { $in: existingRecipeItems.map(item => item._id) } 
+//     });
+    
+//     // Group chemicals by recipe item ID
+//     const existingChemicalsByRecipeItem = new Map();
+//     existingStepItems.forEach(chemical => {
+//       const recipeItemId = chemical.recipeItemId.toString();
+//       if (!existingChemicalsByRecipeItem.has(recipeItemId)) {
+//         existingChemicalsByRecipeItem.set(recipeItemId, []);
+//       }
+//       existingChemicalsByRecipeItem.get(recipeItemId).push(chemical);
+//     });
+
+//     // Update the wash recipe document
+//     await WashRecipe.findByIdAndUpdate(
+//       id,
+//       { 
+//         orderId, 
+//         date, 
+//         washCode: normalizedWashCode, 
+//         washType,
+//         // Don't clear references yet
+//       }
+//     );
+
+//     // Keep track of new step IDs and process IDs
+//     const newStepIds = [];
+//     const newProcessIds = [];
+    
+//     // Keep track of recipe items to delete after processing
+//     const recipeItemsToDelete = new Set(existingRecipeItems.map(item => item._id.toString()));
+    
+//     // IMPORTANT FIX: We need to track ALL chemicals that should be KEPT
+//     // Any chemical not explicitly kept will be deleted
+//     const chemicalsToKeep = new Set();
+    
+//     // Process steps from workspace items
+//     const steps = workspaceItems
+//       .filter(item => item.type === "step")
+//       .map((item, index) => ({
+//         id: item.id,
+//         _id: item._id,
+//         stepId: typeof item.stepId === 'object' ? item.stepId._id : item.stepId,
+//         stepName: item.stepName,
+//         time: item.time || 0,
+//         temp: item.temp || 0,
+//         liters: item.liters || 0,
+//         sequence: index + 1, // Ensure proper sequencing
+//         chemicals: item.chemicals || []
+//       }));
+
+//     // Process each step
+//     for (const step of steps) {
+//       let recipeItem;
+//       let isNewRecipeItem = true;
+      
+//       // Check if this is an existing step with a backend ID
+//       if (step._id && existingRecipeItemMap.has(step._id.toString())) {
+//         // This is an existing step - update it
+//         recipeItem = existingRecipeItemMap.get(step._id.toString());
+//         recipeItemsToDelete.delete(step._id.toString()); // Don't delete this one
+        
+//         // Update the recipe item
+//         recipeItem.stepId = step.stepId;
+//         recipeItem.time = step.time;
+//         recipeItem.temp = step.temp;
+//         recipeItem.liters = step.liters;
+//         recipeItem.sequence = step.sequence;
+        
+//         await recipeItem.save();
+//         isNewRecipeItem = false;
+//       } else {
+//         // This is a new step - create it
+//         recipeItem = new RecipeItem({
+//           washRecipeId: id,
+//           stepId: step.stepId,
+//           time: step.time,
+//           temp: step.temp,
+//           liters: step.liters,
+//           sequence: step.sequence
+//         });
+        
+//         await recipeItem.save();
+//       }
+      
+//       newStepIds.push(recipeItem._id);
+      
+//       // Handle chemicals for this step
+//       if (step.chemicals && step.chemicals.length > 0) {
+//         // Get existing chemicals for this recipe item
+//         const existingChemicals = !isNewRecipeItem && existingChemicalsByRecipeItem.has(recipeItem._id.toString()) 
+//           ? existingChemicalsByRecipeItem.get(recipeItem._id.toString()) 
+//           : [];
+          
+//         // Create a map of existing chemicals by chemical item ID for quicker lookup
+//         const existingChemicalsMap = new Map();
+//         existingChemicals.forEach(chem => {
+//           // Create a unique key that includes both chemical ID and chemical item ID
+//           const chemId = chem.chemicalItemId.toString();
+//           existingChemicalsMap.set(chemId, chem);
+//         });
+        
+//         // Process each chemical
+//         for (const chemical of step.chemicals) {
+//           // Skip invalid chemicals
+//           if (!chemical.chemicalItemId || !mongoose.Types.ObjectId.isValid(chemical.chemicalItemId)) {
+//             continue;
+//           }
+          
+//           const chemicalItemId = chemical.chemicalItemId.toString();
+          
+//           // Check if this chemical already exists for this recipe item
+//           if (!isNewRecipeItem && existingChemicalsMap.has(chemicalItemId)) {
+//             // Update existing chemical
+//             const existingChemical = existingChemicalsMap.get(chemicalItemId);
+//             chemicalsToKeep.add(existingChemical._id.toString());
+            
+//             // Update the chemical properties
+//             existingChemical.quantity = chemical.quantity || 0;
+//             existingChemical.unit = chemical.unit || "";
+//             await existingChemical.save();
+//           } else {
+//             // Create new chemical
+//             const newChemical = new StepItem({
+//               recipeItemId: recipeItem._id,
+//               chemicalItemId,
+//               quantity: chemical.quantity || 0,
+//               unit: chemical.unit || ""
+//             });
+            
+//             const savedChemical = await newChemical.save();
+//             chemicalsToKeep.add(savedChemical._id.toString());
+//           }
+//         }
+//       }
+      
+//       // NOTE: We've removed the else block that was keeping all chemicals
+//       // by default, even if they were removed in the frontend
+//     }
+    
+//     // Process processes from workspace items
+//     const processes = workspaceItems
+//       .filter(item => item.type === "process")
+//       .map((item, index) => ({
+//         laundryProcessId: item.laundryProcessId,
+//         recipeProcessType: item.processType || item.recipeProcessType || "",
+//         remark: item.remark || "",
+//         sequence: index + 1 // Ensure proper sequencing
+//       }));
+    
+//     // Delete existing processes and create new ones
+//     // (Processes are simpler and don't need the same careful handling as steps with chemicals)
+//     await RecipeProcess.deleteMany({ washRecipeId: id });
+    
+//     if (processes.length > 0) {
+//       const processesToCreate = processes.map(process => ({
+//         washRecipeId: id,
+//         laundryProcessId: process.laundryProcessId,
+//         recipeProcessType: process.recipeProcessType,
+//         remark: process.remark,
+//         sequence: process.sequence
+//       }));
+      
+//       const savedProcesses = await RecipeProcess.insertMany(processesToCreate);
+//       newProcessIds.push(...savedProcesses.map(proc => proc._id));
+//     }
+    
+//     // Delete recipe items that weren't in the update
+//     if (recipeItemsToDelete.size > 0) {
+//       await RecipeItem.deleteMany({ 
+//         _id: { $in: Array.from(recipeItemsToDelete) } 
+//       });
+      
+//       // Delete chemicals associated with deleted recipe items
+//       // This is necessary to avoid orphaned chemicals
+//       await StepItem.deleteMany({
+//         recipeItemId: { $in: Array.from(recipeItemsToDelete) }
+//       });
+//     }
+    
+//     // IMPORTANT FIX: Delete all chemicals NOT explicitly marked for keeping
+//     // Get all existing chemical IDs
+//     const allExistingChemicalIds = existingStepItems.map(chem => chem._id.toString());
+//     // Filter to get chemicals to delete
+//     const chemicalsToDelete = allExistingChemicalIds.filter(
+//       id => !chemicalsToKeep.has(id)
+//     );
+    
+//     if (chemicalsToDelete.length > 0) {
+//       await StepItem.deleteMany({ 
+//         _id: { $in: chemicalsToDelete } 
+//       });
+//     }
+    
+//     // Update wash recipe with new references
+//     await WashRecipe.findByIdAndUpdate(id, {
+//       steps: newStepIds,
+//       recipeProcessId: newProcessIds
+//     });
+    
+//     // Fetch the updated wash recipe for response
+//     const updatedWashRecipe = await WashRecipe.findById(id)
+//       .populate({
+//         path: "orderId",
+//         select: "orderNo season style fabric fabricSupplier keyNo orderQty orderDate articleNo",
+//         populate: {
+//           path: "style",
+//           select: "name styleNo",
+//         }
+//       })
+//       .populate({
+//         path: "recipeProcessId",
+//         populate: {
+//           path: "laundryProcessId",
+//           select: "name recipeProcessType",
+//         },
+//       });
+    
+//     res.status(200).json({ 
+//       message: "Wash recipe updated successfully.",
+//       washRecipe: updatedWashRecipe
+//     });
+    
+//   } catch (error) {
+//     console.error("Error updating wash recipe:", error);
+//     res.status(500).json({ 
+//       message: "Failed to update wash recipe.", 
+//       error: error.message 
+//     });
+//   }
+// };

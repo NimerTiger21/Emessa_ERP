@@ -1,11 +1,11 @@
 import React from 'react';
-import { AiOutlineCalendar, AiOutlineShoppingCart, AiOutlineAreaChart, AiOutlineBarChart, AiOutlineStock } from 'react-icons/ai';
+import { AiOutlineCalendar, AiOutlineShoppingCart, AiOutlineAreaChart, AiOutlineBarChart, AiOutlineStock, AiOutlineHome } from 'react-icons/ai';
 import { TbFaceIdError } from "react-icons/tb";
-import { FiShoppingBag, FiEdit, FiPieChart, FiBarChart, FiCreditCard, FiStar, FiShoppingCart } from 'react-icons/fi';
-import { BsKanban, BsBarChart, BsBoxSeam, BsCurrencyDollar, BsShield, BsChatLeft } from 'react-icons/bs';
+import { FiEdit, FiPieChart, FiCreditCard } from 'react-icons/fi';
+import { BsKanban, BsBarChart, BsCurrencyDollar, BsShield } from 'react-icons/bs';
 import { BiColorFill } from 'react-icons/bi';
 import { IoMdContacts } from 'react-icons/io';
-import { RiContactsLine, RiStockLine } from 'react-icons/ri';
+import { RiStockLine } from 'react-icons/ri';
 import { CgSmartHomeWashMachine } from "react-icons/cg";
 import { GiRolledCloth } from "react-icons/gi";
 import { SiStylelint } from "react-icons/si";
@@ -18,7 +18,8 @@ export const links = [
     links: [
       {
         name: 'dashboard',
-        icon: <FiShoppingBag />,
+        icon: <AiOutlineHome />,
+        roles: ["admin", "quality_manager"],
       },
     ],
   },
@@ -29,22 +30,27 @@ export const links = [
       {
         name: 'orders',
         icon: <AiOutlineShoppingCart />,
+        roles: ["admin", "production_manager"],
       },
       {
         name: 'fabriclist',
         icon: <GiRolledCloth />,
+        roles: ["admin", "quality_manager"],
       },
       {
         name: 'stylelist',
         icon: <SiStylelint />,
+        roles: ["admin", "quality_manager"],
       },
       {
         name: 'defectslist',
         icon: <TbFaceIdError />,
+        roles: ["admin", "quality_manager"],
       },
       {
-        name: 'washing',
+        name: 'wash-recipe-list',
         icon: <CgSmartHomeWashMachine />,
+        roles: ["admin", "wash_supervisor"],
       },
       {
         name: 'employees',
@@ -79,27 +85,33 @@ export const links = [
       {
         name: 'line',
         icon: <AiOutlineStock />,
+        roles: ["admin", "quality_manager"],
       },
       {
         name: 'fabricCompositionChart',
         icon: <AiOutlineAreaChart />,
+        roles: ["admin", "quality_manager"],
       },
 
       {
         name: 'reports/defects',
         icon: <AiOutlineBarChart />,
+        roles: ["admin", "quality_manager"],
       },
       {
         name: 'defectComparison',
         icon: <FiPieChart />,
+        roles: ["admin", "quality_manager"],
       },
       {
-        name: 'financial',
+        name: 'washRecipeDashboard',
         icon: <RiStockLine />,
+        roles: ["admin", "quality_manager"],
       },
       {
-        name: 'color-mapping',
+        name: 'wRDefectDashboard',
         icon: <BsBarChart />,
+        roles: ["admin", "quality_manager"],
       },
       {
         name: 'pyramid',

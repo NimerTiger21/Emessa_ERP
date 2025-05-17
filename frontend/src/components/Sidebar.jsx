@@ -6,8 +6,12 @@ import { TooltipComponent } from '@syncfusion/ej2-react-popups'
 import { links } from '../data/dummy'
 import { useStateContext } from '../contexts/ContextProvider'
 
+import { useAuth } from "../contexts/AuthContext"; // ⬅️ Add this
+
 const Sidebar = () => {
   const { activeMenu, setActiveMenu, screenSize, currentColor } = useStateContext();
+
+  const { user } = useAuth(); // ⬅️ Use current user
   //const activeMenu = true;
   const handleCloseSidebar = () => {
     if (activeMenu && screenSize <= 900) {
@@ -36,7 +40,9 @@ const Sidebar = () => {
                 <p className='text-gray-400 m-3 mt-4 uppercase'>
                     {item.title}
                 </p>
-                {item.links.map((link) => (
+                {item.links
+                .filter((link) => !link.roles || link.roles.includes(user?.role))
+                .map((link) => (
                     <NavLink
                         to={`/${link.name}`}
                         key={link.name}
