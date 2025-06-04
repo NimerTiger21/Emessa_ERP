@@ -13,7 +13,7 @@ import DefectReport from "./components/DefectReport";
 import { ToastContainer, Zoom } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import OrderList from "./pages/OrderList";
-import OrderDetails from "./components/OrderDetails";
+import OrderDetails from "./components/order/OrderDetails";
 import WashRecipeForm from "./components/washRecipes/WashRecipeForm";
 import WashRecipeDetails from "./pages/WashRecipeDetails";
 import WashRecipeList from "./pages/WashRecipeList";

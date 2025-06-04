@@ -1,4 +1,4 @@
-const LaundryProcess = require("../models/LaundryProcess");
+const LaundryProcess = require("../models/washRecipe/LaundryProcess");
 
 // Fetch all laundry processes
 exports.getLaundryProcesses = async (req, res) => {

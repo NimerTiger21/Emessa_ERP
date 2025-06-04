@@ -3,6 +3,8 @@ import { fetchFabrics, deleteFabric, fetchFabricSuppliers } from "../services/ma
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { toast } from "react-toastify";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import { FiEdit, FiTrash2 } from "react-icons/fi";
 import Spinner from "../components/Spinner";
 import FabricModal from "../components/FabricModal";
@@ -57,6 +59,52 @@ const FabricList = () => { //{ openEditModal }
   }, [pagination.page, pagination.limit, sort, search,]);
 
 
+  // ! This is to export all fabric Ya TIGER not only the first viewd 5 items in pagination...
+  // const [fabrics, setFabrics] = useState([]);
+
+  // useEffect(() => {
+  //   loadFabrics();
+  // }, []);
+
+  // const loadFabrics = async () => {
+  //   try {
+  //     const data = await fetchAllFabrics();
+  //     setFabrics(data);
+  //   } catch (error) {
+  //     toast.error("Failed to load fabrics");
+  //   }
+  // };
+
+  const exportToExcel = () => {
+    if (!fabrics || fabrics.length === 0) {
+      toast.warning("No data available to export.");
+      return;
+    }
+
+    const worksheetData = fabrics.map(fabric => ({
+      Name: fabric.name,
+      Code: fabric.code,
+      Color: fabric.color,
+      Supplier: fabric.supplier?.name || "N/A",
+      Composition: fabric.fabricCompositions?.map(fc => `${fc.value}% ${fc.compositionItem?.name || "Unknown"} aabbrPrefix: ${fc.compositionItem.abbrPrefix}`).join(", ") || "N/A"
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Fabrics");
+
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array"
+    });
+
+    const dataBlob = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+
+    saveAs(dataBlob, "Fabrics.xlsx");
+    toast.success("Fabrics exported successfully to Excel");
+  };
     // Handle Sorting
     const handleSort = (field) => {
       setSort((prev) => ({
@@ -146,6 +194,12 @@ const FabricList = () => { //{ openEditModal }
       {/* 🔹 Header & Filter */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <h1 className="text-xl font-bold text-gray-800">Fabric List</h1>
+        <button
+        onClick={exportToExcel}
+        className="mb-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+      >
+        Export to Excel
+      </button>
         {/* Search Bar */}
         <input
           type="text"

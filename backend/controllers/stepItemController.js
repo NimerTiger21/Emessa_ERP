@@ -1,5 +1,5 @@
-const RecipeItem = require("../models/RecipeItem");
-const StepItem = require("../models/StepItem");
+const RecipeItem = require("../models/washRecipe/RecipeItem");
+const StepItem = require("../models/washRecipe/StepItem");
 
 // Add a StepItem to a RecipeItem
 exports.addStepItem = async (req, res) => {

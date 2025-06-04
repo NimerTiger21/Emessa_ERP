@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { fetchLaundryProcesses } from "../services/laundryProcessService";
+import { fetchLaundryProcesses } from "../../services/laundryProcessService";
 import { toast } from "react-toastify";
 
 const RecipeProcessModal = ({ isOpen, onClose, onAddProcess }) => {

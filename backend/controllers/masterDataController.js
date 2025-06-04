@@ -5,10 +5,10 @@ const Fabric = require("../models/order/Fabric");
 const CompositionItem = require("../models/order/CompositionItem");
 const FabricComposition = require("../models/order/FabricComposition");
 const Brand = require("../models/order/Brand");
-const DefectType = require("../models/DefectType");
-const DefectName = require("../models/DefectName");
-const DefectPlace = require("../models/DefectPlace");
-const DefectProcess = require("../models/DefectProcess");
+const DefectType = require("../models/defect/DefectType");
+const DefectName = require("../models/defect/DefectName");
+const DefectPlace = require("../models/defect/DefectPlace");
+const DefectProcess = require("../models/defect/DefectProcess");
 
 exports.getStyles = async (req, res) => {
   try {

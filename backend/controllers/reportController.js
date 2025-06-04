@@ -1,4 +1,4 @@
-const Defect = require("../models/Defect");
+const Defect = require("../models/defect/Defect");
 
 exports.getDefectTrends = async (req, res) => {
   try {

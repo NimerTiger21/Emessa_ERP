@@ -1,29 +1,20 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStateContext } from "../contexts/ContextProvider";
 import ConfirmationModal from "../components/ConfirmationModal";
 import { toast } from "react-toastify";
 import { deleteOrder, fetchOrders } from "../services/orderService";
-import OrderModal from "../components/OrderModal";
-//import ProgressBar from "../components/ProgressBar";
+import OrderModal from "../components/order/OrderModal";
 import Spinner from "./../components/Spinner";
 import { fetchStyles } from "../services/masterDataService";
 
 import { Menu, Transition } from "@headlessui/react";
 import { Fragment } from "react";
-import { MoreVertical, Edit, Trash2, Eye } from "lucide-react"; // Import icons
+import { MoreVertical, Edit, Trash2, Eye } from "lucide-react";
 import FabricModal from "../components/FabricModal";
 import StyleModal from "../components/StyleModal";
 
 const OrderList = () => {
-  // const calculateOverallProgress = () => {
-  //   const totalProgress = orders.reduce(
-  //     (sum, order) => sum + order.stageProgress,
-  //     0
-  //   );
-  //   return Math.round(totalProgress / orders.length);
-  // };
-
   const [editOrder, setEditOrder] = useState(null); // Track defect to edit
   const { currentColor } = useStateContext();
   // Order Management States
@@ -63,6 +54,19 @@ const OrderList = () => {
     }
   };
 
+  const getRateColor = (rate) => {
+  if (rate > 3.5) return "bg-red-100";
+  if (rate > 2.5) return "bg-yellow-100";
+  return "bg-green-100";
+};
+
+const getHoverColor = (rate) => {
+  if (rate > 3.5) return "hover:bg-red-300"; // More intense red
+  if (rate > 2.5) return "hover:bg-yellow-300"; // Stronger yellow
+  return "hover:bg-green-300"; // Brighter green
+};
+
+
   const handleOrderCreated = (newOrder) => {
     setOrders([...orders, newOrder]);
   };
@@ -83,9 +87,7 @@ const OrderList = () => {
 
   // Function to update the defect in the list after editing
   const updateOrderInList = async (updatedOrder) => {
-    console.log("Updating order: ", updatedOrder);
     if (!updatedOrder || !updatedOrder._id) {
-      console.error("Invalid updated order:", updatedOrder);
       toast.error("Invalid updated order");
       return; // Exit if updatedOrder is invalid
     }
@@ -110,12 +112,12 @@ const OrderList = () => {
           style: styleFilter,
         });
         //setIsLoading(true);
-        //console.log("***************** data: ", data);
         setOrders(data.data);
         setPagination((prev) => ({
           ...prev,
           totalPages: data.pagination.totalPages,
         }));
+        console.log("Orders loaded:", data.data);
       } catch (error) {
         console.error("Error loading orders:", error);
         setIsLoading(false);
@@ -134,7 +136,6 @@ const OrderList = () => {
   const handleSort = (field) => {
     setSort((prev) => ({
       field,
-      //order: prev.order === "asc" ? "desc" : "asc",
       order: prev.field === field && prev.order === "asc" ? "desc" : "asc",
     }));
   };
@@ -160,9 +161,9 @@ const OrderList = () => {
 
   // Open Order Details
   const openOrderDetailsModal = (order) => {
-    //navigate(`/orders/${order._id}`);
     navigate(`/orders/${order._id}`, { state: { order } }); // Pass the order object
   };
+  
 
   const openModal = () => setIsModalOpen(true);
   const openCreateFabricModal = () => setIsCearteFabricModalOpen(true);
@@ -232,17 +233,6 @@ const OrderList = () => {
         >
           Create New Style
         </button>
-
-        {/* Overall Progress */}
-        {/* <div className="flex items-center gap-2 flex-shrink-0 p-4 bg-white shadow rounded-lg mb-2">
-          <span className="text-sm font-semibold text-gray-600">
-            Overall Progress:
-          </span>
-          <ProgressBar
-            progress={calculateOverallProgress()}
-            currentStage="Overall"
-          />
-        </div> */}
       </div>
       {/* Order Table */} {/* Order List Section */}
       <table className="table-auto w-full bg-white shadow-md rounded border border-gray-300">
@@ -346,169 +336,162 @@ const OrderList = () => {
               {sort.field === "fabricSupplier" &&
                 (sort.order === "asc" ? "↑" : "↓")}
             </th>
-            {/* <th
-              onClick={() => handleSort("currentStage")}
-              className="cursor-pointer"
-            >
-              Progress{" "}
-              {sort.field === "currentStage" &&
-                (sort.order === "asc" ? "↑" : "↓")}
-            </th> */}
+            <th>D-Ratio</th>
             <th>Actions</th>
             {/* New Actions Column */}
           </tr>
         </thead>
         <tbody>
           {orders.map((order) => (
-            <tr
-              key={order._id}
-              className="hover:bg-gray-100 transition duration-150 ease-in-out"
-            >
-              <td className="border p-2">{order.orderNo}</td>
-              <td className="border p-2">{order.customer?.name}</td>
-              <td className="border p-2">{order.brand?.name || "No Brand"}</td>
-              <td className="border p-2">{order.style?.name}</td>
-              <td className="border p-2">{order.styleNo}</td>
-              <td className="border p-2">{order.keyNo}</td>
-              <td className="border p-2">{order.season}</td>
-              <td className="border p-2">{order.articleNo}</td>
-              <td className="border p-2">{order.fabric?.name}</td>
-              <td className="border p-2">
-                <td className="p-2">
-                  {order.fabric?.fabricCompositions?.length > 0
-                    ? (() => {
-                        const compositionString =
-                          order.fabric.fabricCompositions
-                            .map(
-                              (fc) =>
-                                `${fc.value}%${fc.compositionItem?.name || "Unknown"}`
-                            )
-                            .join(", ");
-                        return compositionString.length > 30
-                          ? compositionString.slice(0, 30) + "..."
-                          : compositionString;
-                      })()
-                    : "No Composition"}
+              <tr
+                key={order._id}
+                // className={`hover:bg-gray-100 transition duration-150 ease-in-out ${getRateColor(
+                //   order.defectRate
+                // )}`}
+                className={`transition duration-150 ease-in-out ${getRateColor(order.defectRate)} ${getHoverColor(order.defectRate)}`}
+              >
+                <td className="border p-2">{order.orderNo}</td>
+                <td className="border p-2">{order.customer?.name}</td>
+                <td className="border p-2">
+                  {order.brand?.name || "No Brand"}
                 </td>
-              </td>
-              <td className="border p-2">
-                {order?.orderDate
-                  ? new Date(order.orderDate).toLocaleDateString()
-                  : "No date selected"}
-              </td>
-              <td className="border p-2">{order.orderQty}</td>
-              <td className="border p-2">{order.fabric?.code || "N/A"}</td>
-              <td className="border p-2">{order.fabricSupplier?.name}</td>
-              {/* Progress Bar */}
-              {/* Place ProgressBar inside a td */}
-              {/* <td className="border p-2">
-                <ProgressBar
-                  progress={order.stageProgress}
-                  currentStage={order.currentStage}
-                />
-              </td> */}
-              {/* Actions */}
-              <td className="border p-2 hidden">
-                {/* Delete Button */}
-                <button
-                  onClick={() => openDeleteConfirm(order._id)}
-                  className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 mr-2"
-                >
-                  Delete
-                </button>
-                {/* Update Button Placeholder */}
-                <button
-                  onClick={() => openEditModal(order)}
-                  className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-                  style={{ backgroundColor: currentColor }} // Inline style for dynamic color
-                >
-                  Update
-                </button>
-                {/* Order Details Button Placeholder */}
-                <button
-                  onClick={() => openOrderDetailsModal(order)}
-                  className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 ml-2"
-                  style={{ backgroundColor: currentColor }} // Inline style for dynamic color
-                >
-                  Details
-                </button>
-              </td>
-
-              <td className="border p-2 text-center">
-                <Menu as="div" className="relative inline-block text-left">
-                  <div>
-                    <Menu.Button className="inline-flex w-full justify-center rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 focus:outline-none">
-                      <MoreVertical className="w-5 h-5" />
-                    </Menu.Button>
-                  </div>
-
-                  <Transition
-                    as={Fragment}
-                    enter="transition ease-out duration-100"
-                    enterFrom="transform opacity-0 scale-95"
-                    enterTo="transform opacity-100 scale-100"
-                    leave="transition ease-in duration-75"
-                    leaveFrom="transform opacity-100 scale-100"
-                    leaveTo="transform opacity-0 scale-95"
+                <td className="border p-2">{order.style?.name}</td>
+                <td className="border p-2">{order.styleNo}</td>
+                <td className="border p-2">{order.keyNo}</td>
+                <td className="border p-2">{order.season}</td>
+                <td className="border p-2">{order.articleNo}</td>
+                <td className="border p-2">{order.fabric?.name}</td>
+                <td className="border p-2">
+                  <td className="p-2">
+                    {order.fabric?.fabricCompositions?.length > 0
+                      ? (() => {
+                          const compositionString =
+                            order.fabric.fabricCompositions
+                              .map(
+                                (fc) =>
+                                  `${fc.value}%${
+                                    fc.compositionItem?.abbrPrefix || "Unknown"
+                                  }`
+                              )
+                              .join(", ");
+                          return compositionString.length > 30
+                            ? compositionString.slice(0, 30) + "..."
+                            : compositionString;
+                        })()
+                      : "No Composition"}
+                  </td>
+                </td>
+                <td className="border p-2">
+                  {order?.orderDate
+                    ? new Date(order.orderDate).toLocaleDateString()
+                    : "No date selected"}
+                </td>
+                <td className="border p-2">{order.orderQty}</td>
+                <td className="border p-2">{order.fabric?.code || "N/A"}</td>
+                <td className="border p-2">{order.fabricSupplier?.name}</td>
+                <td className="border p-2">{order.defectRate}%</td>
+                {/* Actions */}
+                <td className="border p-2 hidden">
+                  {/* Delete Button */}
+                  <button
+                    onClick={() => openDeleteConfirm(order._id)}
+                    className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 mr-2"
                   >
-                    <Menu.Items className="absolute right-0 mt-2 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
-                      <div className="py-1">
-                        {/* View Details */}
-                        <Menu.Item>
-                          {({ active }) => (
-                            <button
-                              onClick={() => openOrderDetailsModal(order)}
-                              className={`${
-                                active
-                                  ? "bg-gray-100 text-gray-900"
-                                  : "text-gray-700"
-                              } group flex w-full items-center px-4 py-2 text-sm`}
-                            >
-                              <Eye className="mr-2 h-5 w-5 text-gray-500" />
-                              View Details
-                            </button>
-                          )}
-                        </Menu.Item>
+                    Delete
+                  </button>
+                  {/* Update Button Placeholder */}
+                  <button
+                    onClick={() => openEditModal(order)}
+                    className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                    style={{ backgroundColor: currentColor }} // Inline style for dynamic color
+                  >
+                    Update
+                  </button>
+                  {/* Order Details Button Placeholder */}
+                  <button
+                    onClick={() => openOrderDetailsModal(order)}
+                    className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 ml-2"
+                    style={{ backgroundColor: currentColor }} // Inline style for dynamic color
+                  >
+                    Details
+                  </button>
+                </td>
 
-                        {/* Edit Order */}
-                        <Menu.Item>
-                          {({ active }) => (
-                            <button
-                              onClick={() => openEditModal(order)}
-                              className={`${
-                                active
-                                  ? "bg-gray-100 text-gray-900"
-                                  : "text-gray-700"
-                              } group flex w-full items-center px-4 py-2 text-sm`}
-                            >
-                              <Edit className="mr-2 h-5 w-5 text-blue-500" />
-                              Edit Order
-                            </button>
-                          )}
-                        </Menu.Item>
+                <td className="border p-2 text-center">
+                  <Menu as="div" className="relative inline-block text-left">
+                    <div>
+                      <Menu.Button className="inline-flex w-full justify-center rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 focus:outline-none">
+                        <MoreVertical className="w-5 h-5" />
+                      </Menu.Button>
+                    </div>
 
-                        {/* Delete Order */}
-                        <Menu.Item>
-                          {({ active }) => (
-                            <button
-                              onClick={() => openDeleteConfirm(order._id)}
-                              className={`${
-                                active
-                                  ? "bg-red-100 text-red-700"
-                                  : "text-red-500"
-                              } group flex w-full items-center px-4 py-2 text-sm`}
-                            >
-                              <Trash2 className="mr-2 h-5 w-5 text-red-500" />
-                              Delete Order
-                            </button>
-                          )}
-                        </Menu.Item>
-                      </div>
-                    </Menu.Items>
-                  </Transition>
-                </Menu>
-              </td>
-            </tr>
+                    <Transition
+                      as={Fragment}
+                      enter="transition ease-out duration-100"
+                      enterFrom="transform opacity-0 scale-95"
+                      enterTo="transform opacity-100 scale-100"
+                      leave="transition ease-in duration-75"
+                      leaveFrom="transform opacity-100 scale-100"
+                      leaveTo="transform opacity-0 scale-95"
+                    >
+                      <Menu.Items className="absolute right-0 mt-2 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
+                        <div className="py-1">
+                          {/* View Details */}
+                          <Menu.Item>
+                            {({ active }) => (
+                              <button
+                                onClick={() => openOrderDetailsModal(order)}
+                                className={`${
+                                  active
+                                    ? "bg-gray-100 text-gray-900"
+                                    : "text-gray-700"
+                                } group flex w-full items-center px-4 py-2 text-sm`}
+                              >
+                                <Eye className="mr-2 h-5 w-5 text-gray-500" />
+                                View Details
+                              </button>
+                            )}
+                          </Menu.Item>
+
+                          {/* Edit Order */}
+                          <Menu.Item>
+                            {({ active }) => (
+                              <button
+                                onClick={() => openEditModal(order)}
+                                className={`${
+                                  active
+                                    ? "bg-gray-100 text-gray-900"
+                                    : "text-gray-700"
+                                } group flex w-full items-center px-4 py-2 text-sm`}
+                              >
+                                <Edit className="mr-2 h-5 w-5 text-blue-500" />
+                                Edit Order
+                              </button>
+                            )}
+                          </Menu.Item>
+
+                          {/* Delete Order */}
+                          <Menu.Item>
+                            {({ active }) => (
+                              <button
+                                onClick={() => openDeleteConfirm(order._id)}
+                                className={`${
+                                  active
+                                    ? "bg-red-100 text-red-700"
+                                    : "text-red-500"
+                                } group flex w-full items-center px-4 py-2 text-sm`}
+                              >
+                                <Trash2 className="mr-2 h-5 w-5 text-red-500" />
+                                Delete Order
+                              </button>
+                            )}
+                          </Menu.Item>
+                        </div>
+                      </Menu.Items>
+                    </Transition>
+                  </Menu>
+                </td>
+              </tr>
           ))}
         </tbody>
       </table>
@@ -563,7 +546,6 @@ const OrderList = () => {
       {/* Create Fabric Modal */}
       {isCearteFabricModalOpen && (
         <FabricModal closeModal={closeModal} refreshFabricList={loadStyles} />
-        // <FabricCompositionForm />
       )}
       {/* Create Style Modal */}
       {isCreateStyleModalOpen && (
@@ -573,7 +555,6 @@ const OrderList = () => {
           //editStyle={editStyle}
           refreshStyleList={loadStyles}
         />
-        // <FabricCompositionForm />
       )}
     </div>
   );

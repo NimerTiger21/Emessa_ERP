@@ -25,19 +25,35 @@ const WashRecipeList = () => {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false); // State for confirmation modal
   const [deleteId, setDeleteId] = useState(null); // ID of defect to be deleted
 
+  // const loadRecipes = async () => {
+  //   try {
+  //     const response = await fetchWashRecipes();
+  //     setWashRecipes(response);
+  //   } catch (error) {
+  //     //toast.error("Failed to fetch wash recipes.");
+  //     setIsLoading(false);
+  //   }
+  // };
+
   const loadRecipes = async () => {
     try {
+      setIsLoading(true);
       const response = await fetchWashRecipes();
-      setWashRecipes(response);
+      setWashRecipes(Array.isArray(response) ? response : []);
     } catch (error) {
+      // Remove toast.error here since empty list isn't an error
       //toast.error("Failed to fetch wash recipes.");
+      setWashRecipes([]); // Explicitly set to empty array on error
+    } finally {
       setIsLoading(false);
     }
   };
-
   useEffect(() => {
     loadRecipes();
     setIsLoading(false);
+    return () => {
+      setWashRecipes([]); // Cleanup on unmount
+    };
   }, []);
 
   // Handle Edit - Navigate to edit page with recipe ID
@@ -56,27 +72,40 @@ const WashRecipeList = () => {
     try {
       await deleteWashRecipe(deleteId);
       //toast.success("Recipe deleted successfully.");
-      loadRecipes(); // Refresh list
+      //loadRecipes(); // Refresh list
+      await loadRecipes(); // Wait for the reload to complete
     } catch (error) {
+      // Revert if failed
+      loadRecipes();
       toast.error("Failed to delete recipe.");
     } finally {
       setIsConfirmOpen(false); // Close confirmation modal
+      setDeleteId(null); // Reset delete ID
     }
   };
 
-
   // Add the handleClone function in the WashRecipeList component:
-const handleClone = (recipeId) => {
-  navigate(`/wash-recipes/clone/${recipeId}`);
-};
+  const handleClone = (recipeId) => {
+    navigate(`/wash-recipes/clone/${recipeId}`);
+  };
 
-  const filteredRecipes = washRecipes.filter(
-    (recipe) =>
-      recipe.orderId?.orderNo
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      recipe.washCode?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // const filteredRecipes = washRecipes.filter(
+  //   (recipe) =>
+  //     recipe.orderId?.orderNo
+  //       ?.toLowerCase()
+  //       .includes(searchTerm.toLowerCase()) ||
+  //     recipe.washCode?.toLowerCase().includes(searchTerm.toLowerCase())
+  // );
+
+  const filteredRecipes = React.useMemo(() => {
+    return washRecipes.filter(
+      (recipe) =>
+        recipe.orderId?.orderNo
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        recipe.washCode?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [washRecipes, searchTerm]);
 
   const closeConfirm = () => setIsConfirmOpen(false);
 

@@ -1,21 +1,18 @@
 // config/db.js
 const mongoose = require("mongoose");
-const Section = require("../models/Section");
-const Process = require("../models/DefectProcessSewingProblems");
-const DefectType = require("../models/DefectType");
-const DefectName = require("../models/DefectName");
-const DefectPlace = require("../models/DefectPlace");
-const DefectProcessSewingProblems = require("../models/DefectProcessSewingProblems");
-const DefectProcess = require("../models/DefectProcess");
-require('dotenv').config();
+const DefectType = require("../models/defect/DefectType");
+const DefectName = require("../models/defect/DefectName");
+const DefectPlace = require("../models/defect/DefectPlace");
+const DefectProcess = require("../models/defect/DefectProcess");
+require("dotenv").config();
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ Connected to MongoDB Atlas'))
-  .catch(err => console.error('❌ Database connection error:', err));
+    await mongoose
+      .connect(process.env.MONGO_CLOUD_URI)
+      .then(() => console.log("✅ Connected to MongoDB Atlas"))
+      .catch((err) => console.error("❌ Database connection error:", err));
 
-  
     // await mongoose.connect(process.env.MONGO_CLOUD_URI, { //MONGO_CLOUD_URI | MONGO_URI
     //   useNewUrlParser: true,
     //   useUnifiedTopology: true,
@@ -114,7 +111,6 @@ const seedDatabase = async () => {
 
     //   { name: "Lycra", type: "6801fa8c7bc4fa70bef37263", description: "Lycra Defects" },
 
-
     //   { name: "Sewing holes", type: "6801fa8c7bc4fa70bef37265", description: "Sewing Defects in Sewing" },
     //   { name: "Sewing problems", type: "6801fa8c7bc4fa70bef37265", description: "Sewing Defects in Sewing" },
     //   { name: "Different distance facing front pocket", type: "6801fa8c7bc4fa70bef37265", description: "Sewing Defects in Sewing" },
@@ -127,14 +123,13 @@ const seedDatabase = async () => {
     //   { name: "Different distance between leg", type: "6801fa8c7bc4fa70bef37265", description: "Sewing Defects in Sewing" },
     //   { name: "(Elactic band) WB", type: "6801fa8c7bc4fa70bef37265", description: "Sewing Defects in Sewing" },
     //   { name: "Holes Bad Handing for line", type: "6801fa8c7bc4fa70bef37265", description: "Sewing Defects in Sewing" },
-      
-      
+
     //   { name: "Embroidery", type: "680207c0e17fdb70e26854a3", description: "Embroidery Defects" },
 
     //   { name: "Different measurment", type: "6801fa8c7bc4fa70bef37266", description: "Measurment Defects" },
-      
+
     //   { name: "Changes", type: "6801fa8c7bc4fa70bef37267", description: "Cutting Defects" },
-      
+
     //   { name: "Washing problem ( Holes back pocket )", type: "6801fa8c7bc4fa70bef37268", description: "laundry Defects" },
     //   { name: "( High destroy WB )", type: "6801fa8c7bc4fa70bef37268", description: "laundry Defects" },
     //   { name: "( High destroy body )", type: "6801fa8c7bc4fa70bef37268", description: "laundry Defects" },
@@ -152,14 +147,14 @@ const seedDatabase = async () => {
     //   { name: "Holes due to Taken", type: "6801fa8c7bc4fa70bef37268", description: "laundry Defects" },
     //   { name: "Scraping", type: "6801fa8c7bc4fa70bef37268", description: "laundry Defects" },
     //   { name: "Zipper", type: "6801fa8c7bc4fa70bef37268", description: "laundry Defects" },
-      
+
     //   { name: "Printing", type: "6801fa8c7bc4fa70bef37264", description: "Printing Defects" },
-      
+
     //   { name: "Reinforcement", type: "6801fa8c7bc4fa70bef37269", description: "Packing Defects" },
     //   { name: "Cut in the lining", type: "6801fa8c7bc4fa70bef37269", description: "Packing Defects" },
     //   { name: "Holes Bad Handing for packing", type: "6801fa8c7bc4fa70bef37269", description: "Packing Defects" },
     //   { name: "Bad trimming", type: "6801fa8c7bc4fa70bef37269", description: "Packing Defects" },
-      
+
     //   { name: "Unknown holes", type: "6801fa8c7bc4fa70bef3726a", description: "Unknown holes" },
     // ]);
 
@@ -175,9 +170,9 @@ const seedDatabase = async () => {
     // ]);
     // console.log("Defect Places seeded:", places);
 
-
     // Step 6: Create Defect Processes with Defect Place References
-    const processes = await DefectProcess.insertMany([ //SewingProblems & Holes
+    const processes = await DefectProcess.insertMany([
+      //SewingProblems & Holes
       //SewingProblems
       {
         name: "WB",
@@ -214,7 +209,7 @@ const seedDatabase = async () => {
         place: new mongoose.Types.ObjectId("6804a4fe62c4dd9f2bb82da3"),
         description: "WB - Loops Defects",
       },
-//Holes
+      //Holes
       {
         name: "Out side waist band",
         place: new mongoose.Types.ObjectId("6804a4fe62c4dd9f2bb82da3"),
@@ -230,7 +225,6 @@ const seedDatabase = async () => {
         place: new mongoose.Types.ObjectId("6804a4fe62c4dd9f2bb82da3"),
         description: "WB - Label waist band Defects",
       },
-
 
       //Front //SewingProblems
 
@@ -279,7 +273,6 @@ const seedDatabase = async () => {
         place: new mongoose.Types.ObjectId("6804a4fe62c4dd9f2bb82da4"),
         description: "Front - Front rise Defects",
       },
-
 
       //Front //Holes Problems
 
@@ -349,8 +342,6 @@ const seedDatabase = async () => {
         description: "Front - Piping of fly Defects",
       },
 
-
-
       //Side //SewingProblems
       {
         name: "Side seam",
@@ -380,7 +371,6 @@ const seedDatabase = async () => {
         description: "Side - Stitch D/N over side Defects",
       },
 
-
       //Leg //SewingProblems
 
       {
@@ -406,7 +396,6 @@ const seedDatabase = async () => {
 
       //Leg //Holes Problems
       // NON Same Obove
-
 
       //Back //SewingProblems
       {

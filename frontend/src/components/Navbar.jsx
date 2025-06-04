@@ -7,7 +7,7 @@ import { AiOutlineShoppingCart } from "react-icons/ai";
 import { MdKeyboardArrowDown } from "react-icons/md";
 import { TooltipComponent } from "@syncfusion/ej2-react-popups";
 import avatar from "../data/avatar.jpg";
-import { Cart, Chat, Notification, UserProfile } from ".";
+import { Chat, UserProfile } from ".";
 import { useStateContext } from "../contexts/ContextProvider";
 import { useNavigate } from "react-router-dom";
 
@@ -115,14 +115,8 @@ function Navbar() {
           </div>
         </TooltipComponent>
 
-        {isClicked.cart && <Cart />}
-        {isClicked.chat && <Chat />}
-        {isClicked.notification && <Notification />}
         {isClicked.userProfile && <UserProfile />}
       </div>
-      {/* <UserProfile> */}
-      {/* Will now show role-specific options */}
-    {/* </UserProfile> */}
     </div>
   );
 }

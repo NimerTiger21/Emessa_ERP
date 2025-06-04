@@ -1,11 +1,13 @@
 // src/services/defectAnalyticsService.js
-const Defect = require("../models/Defect");
-const Order = require("../models/Order");
-const WashRecipe = require("../models/WashRecipe");
+const Defect = require("../models/defect/Defect");
+const Order = require("../models/order/Order");
+const WashRecipe = require("../models/washRecipe/WashRecipe");
 const Fabric = require("../models/order/Fabric");
 const Style = require("../models/order/Style");
 const FabricComposition = require("../models/order/FabricComposition");
 const CompositionItem = require("../models/order/CompositionItem");
+const DefectType = require("../models/defect/DefectType");
+const mongoose = require("mongoose");
 
 /**
  * Get comprehensive defect analytics data
@@ -16,6 +18,7 @@ exports.getDefectAnalytics = async (filters = {}) => {
   try {
     // Build query based on filters
     const query = {};
+    //console.log("Received filters:", filters);
 
     // Apply date range filter if provided
     if (filters.startDate && filters.endDate) {
@@ -28,6 +31,13 @@ exports.getDefectAnalytics = async (filters = {}) => {
     // Apply other filters
     if (filters.severity) query.severity = filters.severity;
     if (filters.status) query.status = filters.status;
+
+    if (filters.defectType) query.defectType = filters.defectType;
+
+    // const { defectType } = filters;
+    // if (defectType && mongoose.Types.ObjectId.isValid(defectType)) {
+    //   query.defectType = new mongoose.Types.ObjectId(defectType);
+    // }
 
     // Get all defects with populated references
     const defects = await Defect.find(query)
@@ -90,6 +100,7 @@ exports.getDefectAnalytics = async (filters = {}) => {
     const compositionItemMap = {};
     const defectTypeMap = {};
     const defectPlaceMap = {};
+    const lineMap = {};
 
     // Process monthly trend data
     const monthlyData = {};
@@ -107,6 +118,26 @@ exports.getDefectAnalytics = async (filters = {}) => {
       severityCounts[defect.severity] =
         (severityCounts[defect.severity] || 0) + count;
 
+      if (defect.productionLine) {
+        // Assuming you have a productionLine field
+        // const productionLine = defect.productionLine._id.toString();
+        const productionLine = defect.productionLine.toString();
+        if (!lineMap[productionLine]) {
+          lineMap[productionLine] = {
+            // id: productionLine,
+            // name: defect.productionLine.name || "Unknown Line",
+            name: defect.productionLine || "Unknown Line",
+            // lineNumber: defect.productionLine.lineNumber || "N/A",
+            count: 0,
+            percentage: 0,
+            efficiency: defect.productionLine.efficiency || 0,
+            totalProduced: 0,
+          };
+        }
+        lineMap[productionLine].count += defect.defectCount || 1;
+        lineMap[productionLine].totalProduced += defect.orderId.orderQty || 0;
+      }
+
       // Process fabric data
       if (defect.orderId && defect.orderId.fabric) {
         const fabricId = defect.orderId.fabric._id.toString();
@@ -117,10 +148,21 @@ exports.getDefectAnalytics = async (filters = {}) => {
             code: defect.orderId.fabric.code || "N/A",
             count: 0,
             percentage: 0,
+            composition:
+              defect.orderId.fabric.fabricCompositions
+                ?.map((fc) => {
+                  const name = fc.compositionItem?.name || "Unknown";
+                  const ratio = fc.value != null ? `${fc.value}%` : "";
+                  return ratio ? `${ratio} ${name}` : name;
+                })
+                .join(", ") || "N/A",
+
+            totalProduced: 0,
           };
         }
         //fabricMap[fabricId].count += 1;
         fabricMap[fabricId].count += defect.defectCount || 1; // <-- Add the effect value
+        fabricMap[fabricId].totalProduced += defect.orderId.orderQty || 0;
       }
 
       // Process style data
@@ -133,10 +175,19 @@ exports.getDefectAnalytics = async (filters = {}) => {
             styleNo: defect.orderId.style.styleNo || "N/A",
             count: 0,
             percentage: 0,
+            orders: {}, // <-- Nested key breakdown
+          };
+        }
+        const keyNo = defect.orderId.keyNo || "Unknown KeyNo";
+        if (!styleMap[styleId].orders[keyNo]) {
+          styleMap[styleId].orders[keyNo] = {
+            keyNo,
+            count: 0,
           };
         }
         //styleMap[styleId].count += 1;
         styleMap[styleId].count += defect.defectCount || 1; // <-- Add the effect value
+        styleMap[styleId].orders[keyNo].count += defect.defectCount;
       }
 
       // Process defect type data
@@ -228,6 +279,15 @@ exports.getDefectAnalytics = async (filters = {}) => {
       .sort((a, b) => b.count - a.count);
 
     // Convert maps to arrays and calculate percentages
+
+    // Then add to your result object:
+    result.byLine = Object.values(lineMap)
+      .map((item) => ({
+        ...item,
+        percentage: ((item.count / totalDefects) * 100).toFixed(1),
+      }))
+      .sort((a, b) => b.count - a.count);
+
     result.byFabric = Object.values(fabricMap)
       .map((item) => ({
         ...item,
@@ -239,6 +299,7 @@ exports.getDefectAnalytics = async (filters = {}) => {
       .map((item) => ({
         ...item,
         percentage: ((item.count / totalDefects) * 100).toFixed(1),
+        orders: Object.values(item.orders).sort((a, b) => b.count - a.count), // Convert nested object to sorted array
       }))
       .sort((a, b) => b.count - a.count);
 
@@ -375,23 +436,32 @@ exports.getTopDefectiveItems = async (category, limit = 5) => {
 //   }
 // };
 
+//************************************************************************************************************************* */
+
 /**
  * Get wash recipe defect analytics
- * @param {Object} filters - Filter criteria
- * @returns {Object} - Wash recipe defect analytics
+ * @param {Object} filters - Filter parameters
+ * @returns {Promise<Object>} - Wash recipe analytics data
  */
 exports.getWashRecipeDefectAnalytics = async (filters = {}) => {
   try {
-    // Build filter query based on provided filters
+    // Build query for defects based on filters
     const defectQuery = {};
 
-    if (filters.startDate && filters.endDate) {
-      defectQuery.detectedDate = {
-        $gte: new Date(filters.startDate),
-        $lte: new Date(filters.endDate),
-      };
+    // Date range filtering
+    if (filters.startDate || filters.endDate) {
+      defectQuery.detectedDate = {};
+      if (filters.startDate) {
+        defectQuery.detectedDate.$gte = new Date(filters.startDate);
+      }
+      if (filters.endDate) {
+        defectQuery.detectedDate.$lte = new Date(
+          `${filters.endDate}T23:59:59.999Z`
+        );
+      }
     }
 
+    // Other filters
     if (filters.severity) {
       defectQuery.severity = filters.severity;
     }
@@ -400,192 +470,572 @@ exports.getWashRecipeDefectAnalytics = async (filters = {}) => {
       defectQuery.status = filters.status;
     }
 
-    // Get all wash recipes with their orders
+    // First find the defectType document by name
+    const defectTypeDoc = await DefectType.findOne({ name: "laundry Defects" });
+    if (!defectTypeDoc) {
+      throw new Error("Defect type 'laundry Defects' not found");
+    }
+    // Find all defects associated with orders that have wash recipes
+    const defects = await Defect.find({
+      ...defectQuery,
+      defectType: defectTypeDoc._id, // Assuming this field exists to identify wash recipe related defects
+    })
+      .populate({
+        path: "orderId",
+        select: "orderNo orderQty washRecipes",
+        populate: {
+          path: "washRecipes",
+          select: "washType date washCode",
+        },
+      })
+      .lean();
+
+    // Filter defects to only include those associated with wash recipes
+    const washRecipeDefects = defects.filter(
+      (defect) =>
+        defect.orderId &&
+        defect.orderId.washRecipes &&
+        defect.orderId.washRecipes.length > 0
+    );
+
+    // If washType filter is applied, further filter the defects
+    let filteredWashRecipeDefects = washRecipeDefects;
+    if (filters.washType) {
+      filteredWashRecipeDefects = washRecipeDefects.filter((defect) =>
+        defect.orderId.washRecipes.some(
+          (recipe) => recipe.washType === filters.washType
+        )
+      );
+    }
+
+    // Get all wash recipes with their detailed information for analytics
     const washRecipes = await WashRecipe.find({})
-      .populate("orderId")
+      .populate({
+        path: "orderId",
+        select: "orderNo orderQty defects articleNo",
+      })
       .populate({
         path: "recipeProcessId",
         populate: {
           path: "laundryProcessId",
+          model: "LaundryProcess",
         },
-      });
+      })
+      .populate({
+        path: "steps",
+        populate: [
+          {
+            path: "stepId",
+            model: "LaundryStep",
+          },
+          {
+            path: "stepItems",
+            populate: {
+              path: "chemicalItemId",
+              model: "ChemicalItems",
+            },
+          },
+        ],
+      })
+      .lean();
 
-    // Get all defects with their orders
-    const defects = await Defect.find(defectQuery)
-      .populate("orderId")
-      .populate("defectName")
-      .populate("defectType");
+    // Apply filter by washType if provided
+    const filteredWashRecipes = filters.washType
+      ? washRecipes.filter((recipe) => recipe.washType === filters.washType)
+      : washRecipes;
 
-    // Group defects by orderId
-    const defectsByOrder = {};
-    defects.forEach((defect) => {
-      if (defect.orderId) {
-        const orderId = defect.orderId._id.toString();
-        if (!defectsByOrder[orderId]) {
-          defectsByOrder[orderId] = [];
+    // Calculate defect counts and percentages by recipe
+    const recipeDefectMap = new Map();
+    filteredWashRecipeDefects.forEach((defect) => {
+      defect.orderId.washRecipes.forEach((recipe) => {
+        const recipeId = recipe._id.toString();
+        if (!recipeDefectMap.has(recipeId)) {
+          recipeDefectMap.set(recipeId, {
+            recipeId,
+            defectCount: 0,
+            recipes: [],
+          });
         }
-        defectsByOrder[orderId].push(defect);
-      }
+
+        const entry = recipeDefectMap.get(recipeId);
+        entry.defectCount += defect.defectCount || 1;
+
+        // Add recipe details if not already added
+        if (
+          !entry.recipes.some((r) => r._id.toString() === recipe._id.toString())
+        ) {
+          entry.recipes.push(recipe);
+        }
+      });
     });
 
-    // Calculate defect metrics for each wash recipe
-    const washRecipeAnalytics = [];
-    const processTypeDefects = {
-      "DRY PROCESS": { count: 0, recipes: 0 },
-      "SPRAY PROCESS": { count: 0, recipes: 0 },
-    };
+    // Process the data for analytics
 
-    for (const recipe of washRecipes) {
-      if (!recipe.orderId) continue;
+    // 1. Calculate total defects related to wash recipes
+    const totalWashRecipeDefects = filteredWashRecipeDefects.reduce(
+      (sum, defect) => sum + (defect.defectCount || 1),
+      0
+    );
 
-      const orderId = recipe.orderId._id.toString();
-      const orderDefects = defectsByOrder[orderId] || [];
+    const totalDefects = defects.reduce(
+      (sum, defect) => sum + (defect.defectCount || 1),
+      0
+    );
 
-      // Get all process types in this recipe
-      const processTypes = new Set();
-      recipe.recipeProcessId.forEach((process) => {
-        if (process.laundryProcessId) {
-          processTypes.add(process.recipeProcessType);
-        }
-      });
-
-      // Calculate defect counts
-      const totalDefects = orderDefects.length;
-      const defectRatio = recipe.orderId.orderQty
-        ? ((totalDefects / recipe.orderId.orderQty) * 100).toFixed(2)
+    const washRecipeDefectRatio =
+      totalDefects > 0
+        ? ((totalWashRecipeDefects / totalDefects) * 100).toFixed(2)
         : 0;
 
-      // Add defect counts to process type totals
-      processTypes.forEach((type) => {
-        if (processTypeDefects[type]) {
-          processTypeDefects[type].count += totalDefects;
-          processTypeDefects[type].recipes++;
+    // 2. Analysis by wash type
+    const washTypeMap = new Map();
+
+    filteredWashRecipeDefects.forEach((defect) => {
+      defect.orderId.washRecipes.forEach((recipe) => {
+        const washType = recipe.washType;
+        if (!washTypeMap.has(washType)) {
+          washTypeMap.set(washType, 0);
         }
+        washTypeMap.set(
+          washType,
+          washTypeMap.get(washType) + (defect.defectCount || 1)
+        );
       });
-
-      // Get defect severity distribution
-      const severityDistribution = {
-        Low: 0,
-        Medium: 0,
-        High: 0,
-      };
-
-      orderDefects.forEach((defect) => {
-        if (defect.severity) {
-          severityDistribution[defect.severity]++;
-        }
-      });
-
-      // Get top defect types
-      const defectTypeCounts = {};
-      orderDefects.forEach((defect) => {
-        if (defect.defectType && defect.defectType.name) {
-          const typeName = defect.defectType.name;
-          defectTypeCounts[typeName] = (defectTypeCounts[typeName] || 0) + 1;
-        }
-      });
-
-      const topDefectTypes = Object.entries(defectTypeCounts)
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 3);
-
-      washRecipeAnalytics.push({
-        recipeId: recipe._id,
-        washCode: recipe.washCode,
-        washType: recipe.washType,
-        orderNo: recipe.orderId.orderNo,
-        orderQty: recipe.orderId.orderQty,
-        processTypes: Array.from(processTypes),
-        defectCount: totalDefects,
-        defectRatio: defectRatio,
-        severityDistribution,
-        topDefectTypes,
-      });
-    }
-
-    // Sort wash recipes by defect ratio (highest first)
-    washRecipeAnalytics.sort(
-      (a, b) => parseFloat(b.defectRatio) - parseFloat(a.defectRatio)
-    );
-
-    // Calculate process type defect rates
-    const processTypeAnalytics = Object.entries(processTypeDefects).map(
-      ([type, data]) => ({
-        type,
-        totalDefects: data.count,
-        recipeCount: data.recipes,
-        averageDefectsPerRecipe: data.recipes
-          ? (data.count / data.recipes).toFixed(2)
-          : 0,
-      })
-    );
-
-    // Calculate wash type defect distribution
-    const washTypeDefects = {};
-    washRecipeAnalytics.forEach((recipe) => {
-      if (!washTypeDefects[recipe.washType]) {
-        washTypeDefects[recipe.washType] = {
-          count: 0,
-          recipes: 0,
-          defectRatio: 0,
-        };
-      }
-
-      washTypeDefects[recipe.washType].count += recipe.defectCount;
-      washTypeDefects[recipe.washType].recipes++;
-      washTypeDefects[recipe.washType].defectRatio += parseFloat(
-        recipe.defectRatio
-      );
     });
 
-    // Calculate averages for wash types
-    const washTypeAnalytics = Object.entries(washTypeDefects).map(
-      ([type, data]) => ({
-        type,
-        totalDefects: data.count,
-        recipeCount: data.recipes,
-        averageDefectRatio: data.recipes
-          ? (data.defectRatio / data.recipes).toFixed(2)
-          : 0,
-      })
+    const byWashType = Array.from(washTypeMap.entries())
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage:
+          totalWashRecipeDefects > 0
+            ? ((count / totalWashRecipeDefects) * 100).toFixed(2)
+            : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // 3. Analysis by chemical
+    const chemicalDefectMap = new Map();
+
+    // Get all chemicals used in recipes with defects
+    const recipeIds = Array.from(recipeDefectMap.keys());
+
+    // Find all step items for these recipes to get chemicals
+    for (const recipe of filteredWashRecipes) {
+      if (!recipeIds.includes(recipe._id.toString())) continue;
+
+      const defectCount = recipeDefectMap.has(recipe._id.toString())
+        ? recipeDefectMap.get(recipe._id.toString()).defectCount
+        : 0;
+
+      if (defectCount === 0) continue;
+
+      // Process each step in the recipe
+      for (const step of recipe.steps || []) {
+        // Process each chemical in the step
+        for (const stepItem of step.stepItems || []) {
+          if (stepItem.chemicalItemId) {
+            const chemicalName = stepItem.chemicalItemId.name;
+            if (!chemicalDefectMap.has(chemicalName)) {
+              chemicalDefectMap.set(chemicalName, 0);
+            }
+            chemicalDefectMap.set(
+              chemicalName,
+              chemicalDefectMap.get(chemicalName) + defectCount
+            );
+          }
+        }
+      }
+    }
+
+    const byChemical = Array.from(chemicalDefectMap.entries())
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage:
+          totalWashRecipeDefects > 0
+            ? ((count / totalWashRecipeDefects) * 100).toFixed(2)
+            : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // 4. Analysis by process
+    const processDefectMap = new Map();
+
+    for (const recipe of filteredWashRecipes) {
+      if (!recipeIds.includes(recipe._id.toString())) continue;
+
+      const defectCount = recipeDefectMap.has(recipe._id.toString())
+        ? recipeDefectMap.get(recipe._id.toString()).defectCount
+        : 0;
+
+      if (defectCount === 0) continue;
+
+      // Process each laundry process in the recipe
+      for (const process of recipe.recipeProcessId || []) {
+        if (process.laundryProcessId) {
+          const processName = process.laundryProcessId.name;
+          if (!processDefectMap.has(processName)) {
+            processDefectMap.set(processName, 0);
+          }
+          processDefectMap.set(
+            processName,
+            processDefectMap.get(processName) + defectCount
+          );
+        }
+      }
+    }
+
+    const byProcess = Array.from(processDefectMap.entries())
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage:
+          totalWashRecipeDefects > 0
+            ? ((count / totalWashRecipeDefects) * 100).toFixed(2)
+            : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // 5. Analysis by temperature range
+    const temperatureRanges = [
+      { min: 0, max: 30, name: "0-30°C" },
+      { min: 31, max: 50, name: "31-50°C" },
+      { min: 51, max: 70, name: "51-70°C" },
+      { min: 71, max: 90, name: "71-90°C" },
+      { min: 91, max: Number.POSITIVE_INFINITY, name: "91°C+" },
+    ];
+
+    // const temperatureDefectMap = new Map(
+    //   temperatureRanges.map((range) => [range.name, 0])
+    // );
+
+    // for (const recipe of filteredWashRecipes) {
+    //   if (!recipeIds.includes(recipe._id.toString())) continue;
+
+    //   const defectCount = recipeDefectMap.has(recipe._id.toString())
+    //     ? recipeDefectMap.get(recipe._id.toString()).defectCount
+    //     : 0;
+
+    //   if (defectCount === 0) continue;
+
+    //   // Process each step in the recipe to get temperature data
+    //   for (const step of recipe.steps || []) {
+    //     if (step.temp) {
+    //       const temp = Number(step.temp);
+    //       if (!isNaN(temp)) {
+    //         const tempRange = temperatureRanges.find(
+    //           (range) => temp >= range.min && temp <= range.max
+    //         );
+
+    //         if (tempRange) {
+    //           temperatureDefectMap.set(
+    //             tempRange.name,
+    //             temperatureDefectMap.get(tempRange.name) + defectCount
+    //           );
+    //         }
+    //       }
+    //     }
+    //   }
+    // }
+
+    // const byTemperature = Array.from(temperatureDefectMap.entries())
+    //   .map(([name, count]) => ({
+    //     name,
+    //     count,
+    //     percentage:
+    //       totalWashRecipeDefects > 0
+    //         ? ((count / totalWashRecipeDefects) * 100).toFixed(2)
+    //         : 0,
+    //   }))
+    //   .filter((item) => item.count > 0)
+    //   .sort((a, b) => {
+    //     // Sort numerically by the starting temperature in the range
+    //     const aStart = parseInt(a.name.split("-")[0]);
+    //     const bStart = parseInt(b.name.split("-")[0]);
+    //     return aStart - bStart;
+    //   });
+
+    // Initialize map with count and a Set of recipe IDs per temperature range
+    const temperatureDefectMap = new Map(
+      temperatureRanges.map((range) => [range.name, 0])
     );
 
-    // Find recipes with highest defect ratios
-    const topDefectiveRecipes = washRecipeAnalytics.slice(0, 10);
+    for (const recipe of filteredWashRecipes) {
+      if (!recipeIds.includes(recipe._id.toString())) continue;
 
-    // Find recipes with lowest defect ratios (excluding zero defects)
-    const lowestDefectiveRecipes = [...washRecipeAnalytics]
-      .filter((recipe) => recipe.defectCount > 0)
-      .sort((a, b) => parseFloat(a.defectRatio) - parseFloat(b.defectRatio))
+      const defectCount = recipeDefectMap.has(recipe._id.toString())
+        ? recipeDefectMap.get(recipe._id.toString()).defectCount
+        : 0;
+
+      if (defectCount === 0) continue;
+
+      // Extract all valid temperatures from steps
+      const temps = (recipe.steps || [])
+        .map((step) => Number(step.temp))
+        .filter((temp) => !isNaN(temp));
+
+      if (temps.length === 0) continue; // Skip if no valid temps
+
+      // Choose max temperature (you can change to average or another logic)
+      const maxTemp = Math.max(...temps);
+
+      // Find the temperature range for maxTemp
+      const tempRange = temperatureRanges.find(
+        (range) => maxTemp >= range.min && maxTemp <= range.max
+      );
+
+      if (tempRange) {
+        temperatureDefectMap.set(
+          tempRange.name,
+          temperatureDefectMap.get(tempRange.name) + defectCount
+        );
+      }
+    }
+
+    // Calculate percentages
+    const byTemperature = Array.from(temperatureDefectMap.entries())
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage:
+          totalWashRecipeDefects > 0
+            ? ((count / totalWashRecipeDefects) * 100).toFixed(2)
+            : 0,
+      }))
+      .filter((item) => item.count > 0)
+      .sort((a, b) => {
+        const aStart = parseInt(a.name.split("-")[0]);
+        const bStart = parseInt(b.name.split("-")[0]);
+        return aStart - bStart;
+      });
+
+    // 6. Analysis by water ratio (liters)
+    const waterRanges = [
+      { min: 0, max: 5, name: "0-5L" },
+      { min: 6, max: 10, name: "6-10L" },
+      { min: 11, max: 20, name: "11-20L" },
+      { min: 21, max: 50, name: "21-50L" },
+      { min: 51, max: Number.POSITIVE_INFINITY, name: "51L+" },
+    ];
+
+    const waterDefectMap = new Map(waterRanges.map((range) => [range.name, 0]));
+
+    for (const recipe of filteredWashRecipes) {
+      if (!recipeIds.includes(recipe._id.toString())) continue;
+
+      const defectCount = recipeDefectMap.has(recipe._id.toString())
+        ? recipeDefectMap.get(recipe._id.toString()).defectCount
+        : 0;
+
+      if (defectCount === 0) continue;
+
+      // Process each step in the recipe to get water usage data
+      for (const step of recipe.steps || []) {
+        if (step.liters) {
+          const liters = Number(step.liters);
+          if (!isNaN(liters)) {
+            const waterRange = waterRanges.find(
+              (range) => liters >= range.min && liters <= range.max
+            );
+
+            if (waterRange) {
+              waterDefectMap.set(
+                waterRange.name,
+                waterDefectMap.get(waterRange.name) + defectCount
+              );
+            }
+          }
+        }
+      }
+    }
+
+    const byWaterRatio = Array.from(waterDefectMap.entries())
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage:
+          totalWashRecipeDefects > 0
+            ? ((count / totalWashRecipeDefects) * 100).toFixed(2)
+            : 0,
+      }))
+      .filter((item) => item.count > 0)
+      .sort((a, b) => {
+        // Sort numerically by the starting value in the range
+        const aStart = parseInt(a.name.split("-")[0]);
+        const bStart = parseInt(b.name.split("-")[0]);
+        return aStart - bStart;
+      });
+
+    // 7. Analysis by duration (minutes)
+    const durationRanges = [
+      { min: 0, max: 10, name: "0-10 min" },
+      { min: 11, max: 30, name: "11-30 min" },
+      { min: 31, max: 60, name: "31-60 min" },
+      { min: 61, max: 120, name: "61-120 min" },
+      { min: 121, max: Number.POSITIVE_INFINITY, name: "120+ min" },
+    ];
+
+    const durationDefectMap = new Map(
+      durationRanges.map((range) => [range.name, 0])
+    );
+
+    for (const recipe of filteredWashRecipes) {
+      if (!recipeIds.includes(recipe._id.toString())) continue;
+
+      const defectCount = recipeDefectMap.has(recipe._id.toString())
+        ? recipeDefectMap.get(recipe._id.toString()).defectCount
+        : 0;
+
+      if (defectCount === 0) continue;
+
+      // Process each step in the recipe to get duration data
+      for (const step of recipe.steps || []) {
+        if (step.time) {
+          const time = Number(step.time);
+          if (!isNaN(time)) {
+            const durationRange = durationRanges.find(
+              (range) => time >= range.min && time <= range.max
+            );
+
+            if (durationRange) {
+              durationDefectMap.set(
+                durationRange.name,
+                durationDefectMap.get(durationRange.name) + defectCount
+              );
+            }
+          }
+        }
+      }
+    }
+
+    const byDuration = Array.from(durationDefectMap.entries())
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage:
+          totalWashRecipeDefects > 0
+            ? ((count / totalWashRecipeDefects) * 100).toFixed(2)
+            : 0,
+      }))
+      .filter((item) => item.count > 0)
+      .sort((a, b) => {
+        // Sort numerically by the starting value in the range
+        const aStart = parseInt(a.name.split("-")[0]);
+        const bStart = parseInt(b.name.split("-")[0]);
+        return aStart - bStart;
+      });
+
+    // 8. Prepare recipe data for table display
+    const recipesWithDefects = filteredWashRecipes
+      .map((recipe) => {
+        const recipeId = recipe._id.toString();
+        const defectData = recipeDefectMap.get(recipeId) || { defectCount: 0 };
+
+        // Calculate defect density
+        const orderQty = recipe.orderId?.orderQty || 0;
+        const defectDensity =
+          orderQty > 0
+            ? ((defectData.defectCount / orderQty) * 100).toFixed(2)
+            : 0;
+
+        // Get the top chemical used in this recipe
+        const chemicalsUsed = recipe.steps
+          .flatMap((step) => step.stepItems || [])
+          .filter((item) => item.chemicalItemId)
+          .map((item) => item.chemicalItemId.name);
+
+        const chemicalCounts = {};
+        chemicalsUsed.forEach((chem) => {
+          chemicalCounts[chem] = (chemicalCounts[chem] || 0) + 1;
+        });
+
+        const topChemical =
+          Object.entries(chemicalCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([name]) => name)[0] || "N/A";
+
+        // Get the primary process used in this recipe
+        const processes = recipe.recipeProcessId
+          .filter((process) => process.laundryProcessId)
+          .map((process) => process.laundryProcessId.name);
+
+        const primaryProcess = processes[0] || "N/A";
+
+        // Calculate average temperature
+        const temperatures = recipe.steps
+          .filter((step) => step.temp)
+          .map((step) => Number(step.temp))
+          .filter((temp) => !isNaN(temp));
+
+        const avgTemp =
+          temperatures.length > 0
+            ? (
+                temperatures.reduce((sum, temp) => sum + temp, 0) /
+                temperatures.length
+              ).toFixed(1)
+            : "N/A";
+
+        return {
+          id: recipeId,
+          washCode:
+            recipe.washCode || `Recipe-${recipe._id.toString().substr(-6)}`,
+          articleNo: recipe.orderId?.articleNo || "Unknown",
+          orderNo: recipe.orderId?.orderNo || "Unknown",
+          orderQty: recipe.orderId?.orderQty || 0,
+          // recipeName: recipe.recipeName || 'Unknown',
+          // recipeCode: recipe.recipeCode || 'Unknown',
+
+          washType: recipe.washType,
+          date: recipe.date,
+          defectCount: defectData.defectCount,
+          defectDensity: `${defectDensity}%`,
+          topChemical,
+          primaryProcess,
+          avgTemp,
+          createdAt: recipe.createdAt,
+        };
+      })
+      .sort((a, b) => b.defectCount - a.defectCount);
+
+    // Get top defective recipes (top 10)
+    const topDefective = [...recipesWithDefects]
+      .sort((a, b) => b.defectCount - a.defectCount)
       .slice(0, 10);
 
+    // Get lowest defective recipes with at least one defect (bottom 10)
+    const lowestDefective = [...recipesWithDefects]
+      .filter((recipe) => recipe.defectCount > 0)
+      .sort((a, b) => a.defectCount - b.defectCount)
+      .slice(0, 10);
+
+    // Combine all data for the response
     return {
       summary: {
-        totalRecipes: washRecipes.length,
-        totalRecipesWithDefects: washRecipeAnalytics.filter(
-          (r) => r.defectCount > 0
-        ).length,
-        averageDefectRatio: washRecipeAnalytics.length
-          ? (
-              washRecipeAnalytics.reduce(
-                (sum, r) => sum + parseFloat(r.defectRatio),
-                0
-              ) / washRecipeAnalytics.length
-            ).toFixed(2)
-          : 0,
+        totalWashRecipeDefects,
+        totalDefects,
+        washRecipeDefectRatio,
       },
-      allRecipes: washRecipeAnalytics,
-      topDefectiveRecipes,
-      lowestDefectiveRecipes,
-      processTypeAnalytics,
-      washTypeAnalytics,
+      byWashType,
+      byChemical,
+      byProcess,
+      byTemperature,
+      byWaterRatio,
+      byDuration,
+      recipes: {
+        all: recipesWithDefects,
+        topDefective,
+        lowestDefective,
+      },
     };
   } catch (error) {
     console.error("Error in getWashRecipeDefectAnalytics service:", error);
-    throw new Error("Failed to generate wash recipe defect analytics");
+    throw new Error("Failed to fetch wash recipe defect analytics");
   }
 };
+//****************************************************************************************************************** */
+
+//****************************************************************************************************************** */
 
 /**
  * Get comprehensive wash recipe defect analytics data
@@ -615,8 +1065,21 @@ exports.getWashRecipeDefectAnalytics2 = async (filters = {}) => {
         path: "orderId",
         populate: [
           {
-            path: "washRecipe",
-            populate: { path: "washSteps", populate: { path: "chemicals" } },
+            path: "washRecipes",
+            populate: [
+              {
+                path: "steps",
+                populate: {
+                  path: "stepItems",
+                  populate: { path: "chemicalItemId" },
+                },
+              },
+              {
+                path: "recipeProcessId", // <-- Populate processes!
+                // Optionally, you can further populate laundryProcessId if you want its name:
+                populate: { path: "laundryProcessId" },
+              },
+            ],
           },
           { path: "fabric" },
           { path: "style" },
@@ -662,101 +1125,102 @@ exports.getWashRecipeDefectAnalytics2 = async (filters = {}) => {
     // Process each defect
     defects.forEach((defect) => {
       // Skip if no wash recipe data
-      if (!defect.orderId || !defect.orderId.washRecipe) return;
+      if (!defect.orderId || !defect.orderId.washRecipes) return;
 
       const defectCount = defect.defectCount || 1;
       washRecipeDefectCount += defectCount;
 
-      const washRecipe = defect.orderId.washRecipe;
+      const washRecipes = Array.isArray(defect.orderId.washRecipes)
+        ? defect.orderId.washRecipes
+        : [];
 
-      // Process wash type
-      if (washRecipe.washType) {
-        const washType = washRecipe.washType;
-        if (!washTypeMap[washType]) {
-          washTypeMap[washType] = {
-            name: washType,
-            count: 0,
-            percentage: 0,
-          };
+      washRecipes.forEach((washRecipe) => {
+        // Process wash type
+        if (washRecipe.washType) {
+          const washType = washRecipe.washType;
+          if (!washTypeMap[washType]) {
+            washTypeMap[washType] = {
+              name: washType,
+              count: 0,
+              percentage: 0,
+            };
+          }
+          washTypeMap[washType].count += defectCount;
         }
-        washTypeMap[washType].count += defectCount;
-      }
 
-      // Process temperature ranges
-      if (washRecipe.temperature) {
-        // Create temperature ranges (e.g., "30-40°C")
-        const temp = parseInt(washRecipe.temperature);
-        const tempRange = `${Math.floor(temp / 10) * 10}-${
-          Math.floor(temp / 10) * 10 + 10
-        }°C`;
+        // Process temperature ranges
+        (washRecipe.steps || []).forEach((step) => {
+          if (step.temp) {
+            // Create temperature ranges (e.g., "30-40°C")
+            const temp = parseInt(step.temp);
+            const tempRange = `${Math.floor(temp / 10) * 10}-${
+              Math.floor(temp / 10) * 10 + 10
+            }°C`;
 
-        if (!temperatureMap[tempRange]) {
-          temperatureMap[tempRange] = {
-            name: tempRange,
-            count: 0,
-            percentage: 0,
-          };
-        }
-        temperatureMap[tempRange].count += defectCount;
-      }
-
-      // Process water ratio (liters)
-      if (washRecipe.waterRatio) {
-        // Create water ratio ranges
-        const ratio = parseInt(washRecipe.waterRatio);
-        const ratioRange = `${Math.floor(ratio / 5) * 5}-${
-          Math.floor(ratio / 5) * 5 + 5
-        }L`;
-
-        if (!waterRatioMap[ratioRange]) {
-          waterRatioMap[ratioRange] = {
-            name: ratioRange,
-            count: 0,
-            percentage: 0,
-          };
-        }
-        waterRatioMap[ratioRange].count += defectCount;
-      }
-
-      // Process duration (time)
-      if (washRecipe.duration) {
-        // Create duration ranges in minutes
-        const duration = parseInt(washRecipe.duration);
-        const durationRange = `${Math.floor(duration / 15) * 15}-${
-          Math.floor(duration / 15) * 15 + 15
-        }min`;
-
-        if (!durationMap[durationRange]) {
-          durationMap[durationRange] = {
-            name: durationRange,
-            count: 0,
-            percentage: 0,
-          };
-        }
-        durationMap[durationRange].count += defectCount;
-      }
-
-      // Process wash steps and chemicals
-      if (washRecipe.washSteps && washRecipe.washSteps.length > 0) {
-        washRecipe.washSteps.forEach((step) => {
-          // Process step process (SPRAY, DRY, etc.)
-          if (step.process) {
-            const process = step.process;
-            if (!processMap[process]) {
-              processMap[process] = {
-                name: process,
+            if (!temperatureMap[tempRange]) {
+              temperatureMap[tempRange] = {
+                name: tempRange,
                 count: 0,
                 percentage: 0,
               };
             }
-            processMap[process].count += defectCount;
+            temperatureMap[tempRange].count += defectCount;
           }
+        });
 
-          // Process chemicals
-          if (step.chemicals && step.chemicals.length > 0) {
-            step.chemicals.forEach((chemical) => {
-              if (chemical.name) {
-                const chemicalName = chemical.name;
+        // Process water ratio (liters)
+        (washRecipe.steps || []).forEach((step) => {
+          if (step.liters) {
+            // Create water ratio ranges
+            const ratio = parseInt(step.liters);
+            const ratioRange = `${Math.floor(ratio / 5) * 5}-${
+              Math.floor(ratio / 5) * 5 + 5
+            }L`;
+
+            if (!waterRatioMap[ratioRange]) {
+              waterRatioMap[ratioRange] = {
+                name: ratioRange,
+                count: 0,
+                percentage: 0,
+              };
+            }
+            waterRatioMap[ratioRange].count += defectCount;
+          }
+        });
+
+        // Process duration (time)
+        (washRecipe.steps || []).forEach((step) => {
+          if (step.time) {
+            // Create duration ranges in minutes
+            const duration = parseInt(step.time);
+            const durationRange = `${Math.floor(duration / 15) * 15}-${
+              Math.floor(duration / 15) * 15 + 15
+            }min`;
+
+            if (!durationMap[durationRange]) {
+              durationMap[durationRange] = {
+                name: durationRange,
+                count: 0,
+                percentage: 0,
+              };
+            }
+            durationMap[durationRange].count += defectCount;
+          }
+        });
+
+        // Process wash steps and chemicals
+
+        // Process chemicals
+        (washRecipe.steps || []).forEach((step) => {
+          // Check if step has chemical items
+          if (!step.stepItems || step.stepItems.length === 0) return;
+          // Process each chemical item
+          step.stepItems.forEach((stepItem) => {
+            // Check if stepItem has chemicalItemId
+            if (stepItem.chemicalItemId) {
+              // If populated, chemicalItemId will be an object with a .name property
+              const chemicalName = stepItem.chemicalItemId.name;
+              if (chemicalName) {
                 if (!chemicalMap[chemicalName]) {
                   chemicalMap[chemicalName] = {
                     name: chemicalName,
@@ -766,10 +1230,42 @@ exports.getWashRecipeDefectAnalytics2 = async (filters = {}) => {
                 }
                 chemicalMap[chemicalName].count += defectCount;
               }
-            });
+            }
+          });
+        });
+        // Process recipe process (e.g., SPRAY, DRY)
+
+        (washRecipe.recipeProcessId || []).forEach((process) => {
+          if (process.recipeProcessType) {
+            const processType = process.recipeProcessType;
+            if (!processMap[processType]) {
+              processMap[processType] = {
+                name: processType,
+                count: 0,
+                percentage: 0,
+              };
+            }
+            processMap[processType].count += defectCount;
           }
         });
-      }
+
+        // if (washRecipe.RecipeProcess && washRecipe.RecipeProcess.length > 0) {
+        //   washRecipe.RecipeProcess.forEach((step) => {
+        //     // Process step process (SPRAY, DRY, etc.)
+        //     if (step.recipeProcessType) {
+        //       const process = step.recipeProcessType;
+        //       if (!processMap[process]) {
+        //         processMap[process] = {
+        //           name: process,
+        //           count: 0,
+        //           percentage: 0,
+        //         };
+        //       }
+        //       processMap[process].count += defectCount;
+        //     }
+        //   });
+        // }
+      });
     });
 
     // Calculate percentages and sort results
@@ -817,18 +1313,9 @@ exports.getWashRecipeDefectAnalytics2 = async (filters = {}) => {
     return result;
   } catch (error) {
     console.error("Error fetching wash recipe defect analytics:", error);
-    throw new Error("Failed to fetch wash recipe defect analytics");
+    throw new Error("Failed to fetch wash recipe defect analytics 2");
   }
 };
-
-// const mongoose = require("mongoose");
-// const Defect = require("../models/Defect");
-// const Order = require("../models/Order");
-// const Fabric = require("../models/Fabric");
-// const Style = require("../models/Style");
-// const Brand = require("../models/Brand");
-// const FabricComposition = require("../models/FabricComposition");
-// const CompositionItem = require("../models/CompositionItem");
 
 /**
  * Get comparison data for defect analysis

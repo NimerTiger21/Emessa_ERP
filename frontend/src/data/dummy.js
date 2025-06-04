@@ -1,10 +1,8 @@
 import React from 'react';
-import { AiOutlineCalendar, AiOutlineShoppingCart, AiOutlineAreaChart, AiOutlineBarChart, AiOutlineStock, AiOutlineHome } from 'react-icons/ai';
+import { AiOutlineShoppingCart, AiOutlineAreaChart, AiOutlineBarChart, AiOutlineStock, AiOutlineHome } from 'react-icons/ai';
 import { TbFaceIdError } from "react-icons/tb";
-import { FiEdit, FiPieChart, FiCreditCard } from 'react-icons/fi';
-import { BsKanban, BsBarChart, BsCurrencyDollar, BsShield } from 'react-icons/bs';
-import { BiColorFill } from 'react-icons/bi';
-import { IoMdContacts } from 'react-icons/io';
+import { FiPieChart, FiCreditCard } from 'react-icons/fi';
+import { BsBarChart, BsCurrencyDollar, BsShield } from 'react-icons/bs';
 import { RiStockLine } from 'react-icons/ri';
 import { CgSmartHomeWashMachine } from "react-icons/cg";
 import { GiRolledCloth } from "react-icons/gi";
@@ -33,16 +31,6 @@ export const links = [
         roles: ["admin", "production_manager"],
       },
       {
-        name: 'fabriclist',
-        icon: <GiRolledCloth />,
-        roles: ["admin", "quality_manager"],
-      },
-      {
-        name: 'stylelist',
-        icon: <SiStylelint />,
-        roles: ["admin", "quality_manager"],
-      },
-      {
         name: 'defectslist',
         icon: <TbFaceIdError />,
         roles: ["admin", "quality_manager"],
@@ -52,30 +40,20 @@ export const links = [
         icon: <CgSmartHomeWashMachine />,
         roles: ["admin", "wash_supervisor"],
       },
-      {
-        name: 'employees',
-        icon: <IoMdContacts />,
-      },
     ],
   },
   {
     title: 'Apps',
     links: [
       {
-        name: 'calendar',
-        icon: <AiOutlineCalendar />,
+        name: 'fabriclist',
+        icon: <GiRolledCloth />,
+        roles: ["admin", "quality_manager"],
       },
       {
-        name: 'kanban',
-        icon: <BsKanban />,
-      },
-      {
-        name: 'editor',
-        icon: <FiEdit />,
-      },
-      {
-        name: 'color-picker',
-        icon: <BiColorFill />,
+        name: 'stylelist',
+        icon: <SiStylelint />,
+        roles: ["admin", "quality_manager"],
       },
     ],
   },
@@ -116,10 +94,6 @@ export const links = [
       {
         name: 'pyramid',
         icon: <GiLouvrePyramid />,
-      },
-      {
-        name: 'stacked',
-        icon: <AiOutlineBarChart />,
       },
     ],
   },

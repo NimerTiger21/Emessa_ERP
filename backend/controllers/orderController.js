@@ -1,5 +1,5 @@
-const Defect = require("../models/Defect");
-const Order = require("../models/Order");
+const Defect = require("../models/defect/Defect");
+const Order = require("../models/order/Order");
 const Style = require("../models/order/Style");
 
 const generateBarcode7 = () => {
@@ -9,10 +9,10 @@ const generateBarcode7 = () => {
 // **Stage Progress Mapping**
 const stageMapping = {
   "Fabric Reservation": 0,
-  "Cutting": 25,
-  "Stitching": 50,
-  "Finishing": 75,
-  "Completed": 100,
+  Cutting: 25,
+  Stitching: 50,
+  Finishing: 75,
+  Completed: 100,
 };
 
 // Dynamically set progress based on the stage
@@ -28,17 +28,24 @@ exports.createOrUpdateOrder = async (req, res) => {
     const normalizedOrderNo = orderNo.toString().trim();
     const existingOrder = await Order.findOne({ orderNo: normalizedOrderNo });
 
-    if (existingOrder && (!req.params.id || req.params.id !== existingOrder._id.toString())) {
+    if (
+      existingOrder &&
+      (!req.params.id || req.params.id !== existingOrder._id.toString())
+    ) {
       return res.status(400).json({ message: "Order number already exists." });
     }
 
     let order;
     if (req.params.id) {
       // **Update existing order**
-      order = await Order.findByIdAndUpdate(req.params.id, { orderNo: normalizedOrderNo, ...otherFields }, { 
-        new: true, 
-        runValidators: true 
-      });
+      order = await Order.findByIdAndUpdate(
+        req.params.id,
+        { orderNo: normalizedOrderNo, ...otherFields },
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
       if (!order) return res.status(404).json({ message: "Order not found." });
     } else {
       // **Create new order**
@@ -50,57 +57,6 @@ exports.createOrUpdateOrder = async (req, res) => {
     order.stageProgress = calculateProgress(order.currentStage);
 
     const populatedOrder = await Order.findById(order._id)
-  .populate("customer", "name")
-  .populate("fabricSupplier", "name")
-  .populate("style", "name styleNo")
-  .populate("fabric", "name color")
-  .populate("brand", "name")
-  .populate({
-    path: "fabric",
-    populate: {
-      path: "fabricCompositions",
-      populate: { path: "compositionItem", select: "name abbrPrefix" }
-    }
-  });
-  
-  populatedOrder.stageProgress = calculateProgress(populatedOrder.currentStage);
-  res.status(200).json({ message: "Order Created/Updated Successfully", populatedOrder });
-
-  } catch (error) {
-    console.error("Error creating/updating order:", error);
-    res.status(500).json({ message: "Error processing order", error });
-  }
-};
-// ✅ **Get All Orders with Pagination, Sorting & Filtering**
-exports.getAllOrders = async (req, res) => {
-  try {
-    const {
-      page = 1, limit = 10, sortField = "orderDate", sortOrder = "desc", search, style
-    } = req.query;
-
-    const filter = {};
-    
-    if (style) {
-      filter.style = style;
-    }
-    // Convert Style Name to ObjectId
-    // if (style) {
-    //   const styleDoc = await Style.findOne({ name: style }); // Find the style ID
-    //   if (!styleDoc) {
-    //     return res.status(400).json({ message: "Invalid style selected" });
-    //   }
-    //   filter.style = styleDoc._id; // Use ObjectId for filtering
-    // }
-
-    if (search) {
-      filter.$or = [
-        { orderNo: { $regex: search, $options: "i" } },
-        { keyNo: { $regex: search, $options: "i" } }
-      ];
-    }
-
-    const skip = (page - 1) * limit;
-    const orders = await Order.find(filter)
       .populate("customer", "name")
       .populate("fabricSupplier", "name")
       .populate("style", "name styleNo")
@@ -110,26 +66,98 @@ exports.getAllOrders = async (req, res) => {
         path: "fabric",
         populate: {
           path: "fabricCompositions",
-          populate: { path: "compositionItem", select: "name abbrPrefix" }
-        }
+          populate: { path: "compositionItem", select: "name abbrPrefix" },
+        },
+      });
+
+    populatedOrder.stageProgress = calculateProgress(
+      populatedOrder.currentStage
+    );
+    res
+      .status(200)
+      .json({ message: "Order Created/Updated Successfully", populatedOrder });
+  } catch (error) {
+    console.error("Error creating/updating order:", error);
+    res.status(500).json({ message: "Error processing order", error });
+  }
+};
+// ✅ **Get All Orders with Pagination, Sorting & Filtering**
+exports.getAllOrders = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      sortField = "orderDate",
+      sortOrder = "desc",
+      search,
+      style,
+    } = req.query;
+
+    const filter = {};
+
+    if (style) {
+      filter.style = style;
+    }
+
+    if (search) {
+      filter.$or = [
+        { orderNo: { $regex: search, $options: "i" } },
+        { keyNo: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+    let orders = await Order.find(filter)
+      .populate("customer", "name")
+      .populate("fabricSupplier", "name")
+      .populate("style", "name styleNo")
+      .populate("fabric", "name color")
+      .populate("brand", "name")
+      .populate("defects")
+      .populate({
+        path: "fabric",
+        populate: {
+          path: "fabricCompositions",
+          populate: { path: "compositionItem", select: "name abbrPrefix" },
+        },
       })
       .sort({ [sortField]: sortOrder === "asc" ? 1 : -1 })
-      //.sort({ createdAt: -1 }) // Sort by createdAt in descending order (most recent first)
       .skip(parseInt(skip))
       .limit(parseInt(limit));
 
+    orders = orders.map((order) => {
+      const totalDefects = order.defects.reduce(
+        (sum, defect) => sum + (defect.defectCount || 0),
+        0
+      );
+
+      const defectRate = order.orderQty > 0
+        ? (totalDefects / order.orderQty) * 100
+        : 0;
+
+      return {
+        ...order.toObject(),
+        totalDefectCount: totalDefects,
+        defectRate: parseFloat(defectRate.toFixed(2))
+      };
+    });
+
     const total = await Order.countDocuments(filter);
-    //console.log("Fetched Orders: ", orders);
 
     res.status(200).json({
       data: orders,
-      pagination: { total, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(total / limit) }
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit),
+      },
     });
-
   } catch (error) {
     res.status(500).json({ message: "Error fetching orders", error });
   }
 };
+
 // ✅ **Get Single Order by ID**
 exports.getOrderById = async (req, res) => {
   try {
@@ -142,7 +170,6 @@ exports.getOrderById = async (req, res) => {
 
     if (!order) return res.status(404).json({ message: "Order not found" });
     res.status(200).json(order);
-
   } catch (error) {
     res.status(500).json({ message: "Error fetching order details", error });
   }
@@ -151,20 +178,29 @@ exports.getOrderById = async (req, res) => {
 exports.updateOrder = async (req, res) => {
   try {
     const { orderNo, ...otherFields } = req.body;
-   
+
     const normalizedOrderNo = orderNo.toString().trim();
     const existingOrder = await Order.findOne({ orderNo: normalizedOrderNo });
 
-    if (existingOrder && (!req.params.id || req.params.id !== existingOrder._id.toString())) {
+    if (
+      existingOrder &&
+      (!req.params.id || req.params.id !== existingOrder._id.toString())
+    ) {
       return res.status(400).json({ message: "Order number already exists." });
     }
-    
-    const updatedOrder = await Order.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-    if (!updatedOrder) return res.status(404).json({ message: "Order not found." });
+
+    const updatedOrder = await Order.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!updatedOrder)
+      return res.status(404).json({ message: "Order not found." });
 
     updatedOrder.stageProgress = calculateProgress(updatedOrder.currentStage);
-    res.status(200).json({ message: "Order Updated Successfully", updatedOrder });
-
+    res
+      .status(200)
+      .json({ message: "Order Updated Successfully", updatedOrder });
   } catch (error) {
     res.status(500).json({ message: "Error updating order", error });
   }
@@ -187,7 +223,9 @@ exports.addDefectToOrder = async (req, res) => {
     const newDefect = new Defect({ ...req.body, orderId });
     const savedDefect = await newDefect.save();
 
-    await Order.findByIdAndUpdate(orderId, { $push: { defects: savedDefect._id } });
+    await Order.findByIdAndUpdate(orderId, {
+      $push: { defects: savedDefect._id },
+    });
 
     res.status(201).json(savedDefect);
   } catch (error) {
@@ -199,43 +237,45 @@ exports.addDefectToOrder = async (req, res) => {
 exports.getDefectsForOrder = async (req, res) => {
   try {
     const defects = await Defect.find({ orderId: req.params.orderId })
-    .populate("defectType", "name")
-    .populate("defectName", "name")
-    .populate("defectPlace", "name")
-    .populate("defectProcess", "name");
+      .populate("defectType", "name")
+      .populate("defectName", "name")
+      .populate("defectPlace", "name")
+      .populate("defectProcess", "name");
     res.status(200).json(defects);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching defects for order", error });
+    res
+      .status(500)
+      .json({ message: "Error fetching defects for order", error });
   }
 };
 //********************************************************************************************************************************* */
 
-  exports.getOrderById = async (req, res) => {
-    console.log("Fetching order with ID:", req.params.id);
-    try {
-      const order = await Order.findById(req.params.id);
-      if (!order) return res.status(404).json({ message: "Order not found" });
-      res.status(200).json(order);
-    } catch (error) {
-      res.status(500).json({ message: "Error fetching order details", error });
-    }
-  };
+exports.getOrderById = async (req, res) => {
+  console.log("Fetching order with ID:", req.params.id);
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+    res.status(200).json(order);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching order details", error });
+  }
+};
 
-  // Tiger this is not used (Also in the frontend defectService.js => addDefectToOrder) also in routes
-  // Add a defect to an order
-  exports.addDefectToOrder = async (req, res) => {
-    try {
-      const { orderId } = req.params;
-      const newDefect = new Defect({ ...req.body, orderId });
-      const savedDefect = await newDefect.save();
-  
-      // Add defect to order's defects array
-      await Order.findByIdAndUpdate(orderId, {
-        $push: { defects: savedDefect._id },
-      });
-  
-      res.status(201).json(savedDefect);
-    } catch (error) {
-      res.status(500).json({ message: "Error adding defect to order", error });
-    }
-  };
+// Tiger this is not used (Also in the frontend defectService.js => addDefectToOrder) also in routes
+// Add a defect to an order
+exports.addDefectToOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const newDefect = new Defect({ ...req.body, orderId });
+    const savedDefect = await newDefect.save();
+
+    // Add defect to order's defects array
+    await Order.findByIdAndUpdate(orderId, {
+      $push: { defects: savedDefect._id },
+    });
+
+    res.status(201).json(savedDefect);
+  } catch (error) {
+    res.status(500).json({ message: "Error adding defect to order", error });
+  }
+};

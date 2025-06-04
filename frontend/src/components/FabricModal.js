@@ -65,11 +65,11 @@ const FabricModal = ({ closeModal, editFabric, refreshFabricList }) => {
 
     // Check if the composition already exists
     const isDuplicate = formData.compositions.some(
-        (comp) => comp.compositionCode === selectedComposition
-      );
-      if (isDuplicate) {
-        return toast.error("This composition is already added.");
-      }
+      (comp) => comp.compositionCode === selectedComposition
+    );
+    if (isDuplicate) {
+      return toast.error("This composition is already added.");
+    }
 
     const newTotal = totalPercentage + parseInt(percentage);
 
@@ -224,10 +224,17 @@ const FabricModal = ({ closeModal, editFabric, refreshFabricList }) => {
                 onChange={(e) => setSelectedComposition(e.target.value)}
                 className="select-field"
               >
-                <option value="">Select Composition</option>
+                <option value="" disabled selected>
+                  Select Composition
+                </option>
                 {compositionItems.map((comp) => (
                   <option key={comp._id} value={comp._id}>
-                    {comp.name}
+                    <span className="font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-md">
+                      {comp.abbrPrefix}
+                    </span>
+                    {/* <span className="text-sm text-gray-500 ml-2">
+                      {comp.name}
+                    </span> */}
                   </option>
                 ))}
               </select>
@@ -249,12 +256,16 @@ const FabricModal = ({ closeModal, editFabric, refreshFabricList }) => {
                 <FiPlus /> Add
               </button>
             </div>
-            {warning && <p className="text-red-500 text-sm mt-2 flex items-center gap-2"><FiAlertCircle /> {warning}</p>}
+            {warning && (
+              <p className="text-red-500 text-sm mt-2 flex items-center gap-2">
+                <FiAlertCircle /> {warning}
+              </p>
+            )}
 
             {/* Composition Grid */}
             <div className="border rounded-lg p-3 bg-gray-50 mt-3">
               <table className="w-full text-sm">
-              <thead>
+                <thead>
                   <tr className="bg-gray-200 text-gray-700">
                     <th className="p-2 text-left">Composition</th>
                     <th className="p-2 text-left">%</th>
@@ -284,7 +295,7 @@ const FabricModal = ({ closeModal, editFabric, refreshFabricList }) => {
           {/* Footer Buttons - Fixed UI Issue */}
           <div className="mt-4 flex justify-between items-center border-t pt-4">
             <Button
-            type="submit"
+              type="submit"
               className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded flex items-center gap-2"
               disabled={totalPercentage !== 100}
               onClick={handleSubmit}

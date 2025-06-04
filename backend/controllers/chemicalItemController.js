@@ -1,4 +1,4 @@
-const ChemicalItem = require("../models/ChemicalItem");
+const ChemicalItem = require("../models/washRecipe/ChemicalItem");
 
 // Fetch all Chemical Items
 exports.getChemicalItems = async (req, res) => {

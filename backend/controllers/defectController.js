@@ -1,6 +1,6 @@
 // controllers/defectController.js
-const Defect = require("../models/Defect");
-const Order = require("../models/Order");
+const Defect = require("../models/defect/Defect");
+const Order = require("../models/order/Order");
 const fs = require('fs'); // Add this import at the top
 const path = require('path'); // Add this line
 
@@ -12,17 +12,6 @@ exports.createDefect = async (req, res) => {
     const { orderId, defectType, defectName, description, severity, defectCount, productionLine } = req.body;
     //const imagePath = req.file ? req.file.path.replace(/\\/g, "/") : null; // Get image path if uploaded
 
-    
-// if (req.files && req.files.images) {
-//   req.files.images.forEach(file => {
-//     imagePaths.push(file.path.replace(/\\/g, "/"));
-//   });
-// }
-
-// // For existing images (edit case)
-// const existingImages = req.body.existingImages 
-//   ? JSON.parse(req.body.existingImages) 
-//   : [];
 
 // Process new files
 // Process new uploaded files
@@ -39,31 +28,6 @@ const existingImages = req.body.existingImages
   ? JSON.parse(req.body.existingImages) 
   : [];
 
-    //console.log("Image path:", imagePath);  // Log the image path for debugging | Image path: uploads\1731320027611-test.jpg
-     // Check if an image file was uploaded
-     /**
-      * The issue is likely due to the fact that Windows systems use backslashes (\) as the default path separator,
-      *  while URLs require forward slashes (/). When multer saves the file path on a Windows machine, it may use backslashes,
-      *  which can cause issues when you try to display the image in a web application.
-      */
-    //  if (req.file) {
-    //   imagePath = req.file.path.replace(/\\/g, "/"); // Convert backslashes to forward slashes
-    // }
-
-    // const newDefect = new Defect({
-    //   orderId,
-    //   defectType,
-    //   defectName,
-    //   description,
-    //   severity,
-    //   defectCount,
-    //   detectedDate,
-    //   //image: imagePath, // Save the image path in the database
-    //   images: [...existingImages, ...imagePaths],
-    //   month, // New field
-    //   productionLine, // New field
-    // });
-
     // Create new defect with images
     const newDefect = new Defect({
       ...req.body,
@@ -71,8 +35,6 @@ const existingImages = req.body.existingImages
       //images: imagePaths
     });
 
-    // Create a new defect
-    //const newDefect = new Defect(defectData);
     const savedDefect = await newDefect.save();
 
     // Associate the defect with the order
@@ -393,22 +355,6 @@ exports.deleteDefect = async (req, res) => {
     console.error("Error deleting defect:", error);
     res.status(500).json({ message: "Error deleting defect", error });
   }
-
-    // try {
-    //   const defect = await Defect.findById(req.params.id);
-    //   console.error("req.params.id: ", req.params.id);
-    //   console.error("deleting defect:", defect);
-    //   if (!defect) {
-    //     console.error("Inside If:");
-    //     return res.status(404).json({ message: "Defect not found" });
-    //   }
-    //   console.error("before defect.remove():");
-    //   await defect.remove(); // Triggers the middleware
-    //   console.error("After defect.remove():");
-    //   res.status(200).json({ message: "Defect deleted successfully" });
-    // } catch (error) {
-    //   res.status(500).json({ message: "Error deleting defect", error });
-    // }
 };
 
 exports.resolvedDefect = async (req, res) => {

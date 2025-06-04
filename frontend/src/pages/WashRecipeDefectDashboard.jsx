@@ -19,8 +19,8 @@ import {
   Flask,
   Beaker
 } from 'lucide-react';
-import { getWashRecipeDefectAnalytics } from '../services/defectAnalyticsApiService';
-import WashRecipeDefectChart from '../components/WashRecipeDefectChart';
+import { getWashRecipeDefectAnalytics2 } from '../services/defectAnalyticsApiService';
+import WashRecipeDefectChart from '../components/washRecipes/analytics/WashRecipeDefectChart';
 
 // Custom colors for charts
 const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
@@ -64,7 +64,7 @@ const WashRecipeDefectDashboard = () => {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const analyticsData = await getWashRecipeDefectAnalytics({
+      const analyticsData = await getWashRecipeDefectAnalytics2({
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
         ...filters
