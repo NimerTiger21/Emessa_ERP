@@ -45,3 +45,21 @@ module.exports = mongoose.model("Order", OrderSchema);
   }
 });
  */
+
+OrderSchema.pre("remove", async function(next) {
+  try {
+    // Check if order has defects
+    const defectCount = await mongoose.model("Defect").countDocuments({ orderId: this._id });
+    
+    if (defectCount > 0) {
+      throw new Error("Cannot delete order with existing defects. Delete defects first.");
+    }
+
+    // Cascade delete related wash recipes
+    await mongoose.model("WashRecipe").deleteMany({ orderId: this._id });
+    
+    next();
+  } catch (error) {
+    next(error);
+  }
+});

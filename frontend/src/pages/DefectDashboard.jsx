@@ -35,6 +35,12 @@ import {
 import { getDefectAnalytics } from "../services/defectAnalyticsApiService";
 import DefectComparison from "../components/DefectComparison";
 
+/* -------------------------------------------------------------------------- */
+/*                                CONSTANTS                                   */
+/* -------------------------------------------------------------------------- */
+/** *******************************************************************
+ * Constants & helpers
+ * *******************************************************************/
 // Custom colors for charts
 const COLORS = [
   "#4f46e5",
@@ -60,6 +66,16 @@ const DefectDashboard = () => {
 
   const [selectedStyle, setSelectedStyle] = useState(null);
   const [selectedLine, setSelectedLine] = useState(null);
+
+  const truncate = (str, n = 12) =>
+    str.length > n ? str.slice(0, n) + "…" : str;
+
+  const smartTruncate = (str, n = 15) => {
+    if (str.length <= n) return str;
+
+    // Keep first 10 chars and last 5 chars for recognizable patterns
+    return `${str.slice(0, 10)}…${str.slice(-5)}`;
+  };
 
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().setMonth(new Date().getMonth() - 3))
@@ -466,9 +482,10 @@ const DefectDashboard = () => {
           </div>
 
           {/* Main Charts */}
+
+          {/* First row of charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* Some other Ya Tiger Defects */}
-
             {/* Line Defects */}
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-4">
@@ -489,7 +506,7 @@ const DefectDashboard = () => {
               {!selectedLine?.name ? (
                 <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={lineDefects.slice(0, 7)} layout="vertical">
+                    <BarChart data={lineDefects.slice(0, 8)} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
                       <YAxis dataKey="name" type="category" width={120} />
@@ -649,6 +666,82 @@ const DefectDashboard = () => {
             </div>
           </div>
 
+          {/* Second row of charts */}
+          {/* Location & Process Defects */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* // Defect Detail Place Distribution Chart */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-semibold mb-4">
+                Defects by Detail Location
+              </h3>
+              {analytics.byDefectDetailPlace?.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={analytics.byDefectDetailPlace.slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="name"
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                    />
+                    <YAxis />
+                    <Tooltip
+                      formatter={(value, name) => [
+                        `${value} defects (${
+                          analytics.byDefectDetailPlace.find(
+                            (item) => item.count === value
+                          )?.percentage
+                        }%)`,
+                        "Count",
+                      ]}
+                    />
+                    <Bar dataKey="count" fill="#10B981" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No defect detail location data available
+                </div>
+              )}
+            </div>
+            {/* // Defect Detail Process Distribution Chart */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-semibold mb-4">
+                Defects by Detail Process
+              </h3>
+              {analytics.byDefectDetailProcess?.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={analytics.byDefectDetailProcess.slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="name"
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                    />
+                    <YAxis />
+                    <Tooltip
+                      formatter={(value, name) => [
+                        `${value} defects (${
+                          analytics.byDefectDetailProcess.find(
+                            (item) => item.count === value
+                          )?.percentage
+                        }%)`,
+                        "Count",
+                      ]}
+                    />
+                    <Bar dataKey="count" fill="#8B5CF6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No defect detail process data available
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Third row of charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* Fabric Defects */}
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
@@ -663,17 +756,37 @@ const DefectDashboard = () => {
 
               <div className="h-5/6">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={fabricDefects.slice(0, 5)} layout="vertical">
+                  <BarChart
+                    data={fabricDefects.slice(0, 5)}
+                    layout="vertical"
+                    // margin={{ left: 150 }} // Adjust as needed
+                  >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" width={120} />
-                    <Tooltip
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={200}
+                      // tickFormatter={truncate}
+                      tickFormatter={smartTruncate}
+                      // tick={{ angle: -45, textAnchor: 'end' }}
+                      tick={{ angle: -30 }}
+                    />
+                    {/* <Tooltip
                       formatter={(value, name) => [`${value}%`, "Percentage"]}
                       labelFormatter={(value) => `Fabric: ${value}`}
+                    /> */}
+                    <Tooltip
+                      formatter={(value) => [`${value}%`, "Percentage"]}
+                      labelFormatter={(name) => (
+                        <div>
+                          <strong>Fabric:</strong> {name}
+                        </div>
+                      )}
                     />
                     <Legend />
                     <Bar
-                      dataKey="percentage"
+                      dataKey="percentageOfTotalDefects"
                       name="Defect Percentage"
                       fill="#4f46e5"
                     >
@@ -818,7 +931,7 @@ const DefectDashboard = () => {
             </div>
           </div>
 
-          {/* Second row of charts */}
+          {/* Fourth row of charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* Composition Defects */}
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
@@ -902,7 +1015,7 @@ const DefectDashboard = () => {
             </div>
           </div>
 
-          {/* Third row of charts */}
+          {/* Fifth row of charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Defect Types */}
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
@@ -989,6 +1102,247 @@ const DefectDashboard = () => {
           </div>
 
           {/* Data Table */}
+          {/* // Combined Detail Location & Process Table */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold mb-4">
+              Detailed Location Analysis
+            </h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Detail Places Table */}
+              <div>
+                <h4 className="font-medium mb-3 text-green-700">
+                  By Detail Location
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Location</th>
+                        <th className="px-4 py-2 text-right">Count</th>
+                        <th className="px-4 py-2 text-right">%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analytics.byDefectDetailPlace
+                        ?.slice(0, 10)
+                        .map((item, index) => (
+                          <tr
+                            key={item.id}
+                            className={index % 2 === 0 ? "bg-gray-50" : ""}
+                          >
+                            <td className="px-4 py-2">{item.name}</td>
+                            <td className="px-4 py-2 text-right font-medium">
+                              {item.count}
+                            </td>
+                            <td className="px-4 py-2 text-right text-green-600">
+                              {item.percentage}%
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Detail Processes Table */}
+              <div>
+                <h4 className="font-medium mb-3 text-purple-700">
+                  By Detail Process
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Process</th>
+                        <th className="px-4 py-2 text-right">Count</th>
+                        <th className="px-4 py-2 text-right">%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analytics.byDefectDetailProcess
+                        ?.slice(0, 10)
+                        .map((item, index) => (
+                          <tr
+                            key={item.id}
+                            className={index % 2 === 0 ? "bg-gray-50" : ""}
+                          >
+                            <td className="px-4 py-2">{item.name}</td>
+                            <td className="px-4 py-2 text-right font-medium">
+                              {item.count}
+                            </td>
+                            <td className="px-4 py-2 text-right text-purple-600">
+                              {item.percentage}%
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* // Hierarchical Detail Location & Process Table with Relationship View  */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">
+                Hierarchical Location-Process Analysis
+              </h3>
+              {analytics.hierarchicalSummary && (
+                <div className="flex items-center space-x-4 text-sm">
+                  <span className="text-gray-600">
+                    {analytics.hierarchicalSummary.totalPlaces} Places |{" "}
+                    {analytics.hierarchicalSummary.totalProcesses} Processes
+                  </span>
+                  <span
+                    className={`px-2 py-1 rounded text-xs ${
+                      analytics.hierarchicalSummary.verificationPassed
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {analytics.hierarchicalSummary.verificationPassed
+                      ? "✓ Verified"
+                      : "✗ Count Mismatch"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {analytics.byDefectDetailPlace?.map((place, index) => (
+                <div key={place.id} className="border rounded-lg">
+                  {/* Place Header */}
+                  <div className="bg-gray-50 px-4 py-3 flex justify-between items-center">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <h4 className="font-medium text-gray-900">
+                        {place.name}
+                      </h4>
+                      <span className="text-sm text-gray-500">
+                        ({place.count} defects)
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <span className="text-sm font-medium text-blue-600">
+                        {place.percentage}%
+                      </span>
+                      {place.processCountSum !== place.count && (
+                        <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                          ⚠ Count Mismatch
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Processes under this Place */}
+                  {place.processes && place.processes.length > 0 ? (
+                    <div className="px-4 py-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {place.processes.map((process) => (
+                          <div
+                            key={process.id}
+                            className="flex justify-between items-center py-2 px-3 bg-gray-25 rounded border-l-4 border-l-green-400"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                              <span className="text-sm text-gray-700">
+                                {process.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm font-medium text-green-600">
+                                {process.count}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {((process.count / place.count) * 100).toFixed(
+                                  1
+                                )}
+                                %
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Verification Footer */}
+                      <div className="mt-2 pt-2 border-t text-xs text-gray-500 flex justify-between">
+                        <span>Total Processes: {place.processes.length}</span>
+                        <span>
+                          Sum: {place.processCountSum} | Expected: {place.count}
+                          {place.processCountSum === place.count ? (
+                            <span className="text-green-600 ml-1">✓</span>
+                          ) : (
+                            <span className="text-red-600 ml-1">✗</span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-gray-500 italic">
+                      No processes recorded for this location
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Summary Statistics */}
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">
+                Relationship Analysis Summary
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="text-blue-700 font-medium">
+                    Total Locations:
+                  </span>
+                  <span className="ml-2 text-blue-900">
+                    {analytics.byDefectDetailPlace?.length || 0}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-blue-700 font-medium">
+                    Total Processes:
+                  </span>
+                  <span className="ml-2 text-blue-900">
+                    {analytics.byDefectDetailProcess?.length || 0}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-blue-700 font-medium">
+                    Avg Processes/Location:
+                  </span>
+                  <span className="ml-2 text-blue-900">
+                    {analytics.byDefectDetailPlace?.length > 0
+                      ? (
+                          (analytics.byDefectDetailProcess?.length || 0) /
+                          analytics.byDefectDetailPlace.length
+                        ).toFixed(1)
+                      : 0}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-blue-700 font-medium">
+                    Data Integrity:
+                  </span>
+                  <span
+                    className={`ml-2 font-medium ${
+                      analytics.hierarchicalSummary?.verificationPassed
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {analytics.hierarchicalSummary?.verificationPassed
+                      ? "Verified ✓"
+                      : "Issues Found ✗"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* // Top Defective Fabrics Table */}
           <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-800">
@@ -1030,6 +1384,19 @@ const DefectDashboard = () => {
                     <th
                       scope="col"
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      title="❗ 𝐃𝐞𝐟𝐞𝐜𝐭 rate per produced unit = QUALITY MEASURE ❗
+  
+                      ► Percentage of produced units that are defective
+                      ► Calculated as: (defect count / total produced) * 100"
+                    >
+                      Defect Rate
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      title="❗ Share of defects by fabric = DISTRIBUTION MEASURE ❗
+                      ► (which is share of total defects).
+                      ► This is calculated as (defect count / total defects) * 100"
                     >
                       Percentage
                     </th>
@@ -1064,16 +1431,21 @@ const DefectDashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {fabric.totalProduced || 0}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {fabric.defectRatePerProducedUnit}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="w-full bg-gray-200 rounded-full h-2.5">
                             <div
                               className="bg-indigo-600 h-2.5 rounded-full"
-                              style={{ width: `${fabric.percentage}%` }}
+                              style={{
+                                width: `${fabric.percentageOfTotalDefects}%`,
+                              }}
                             ></div>
                           </div>
                           <span className="ml-2 text-sm font-medium text-gray-700">
-                            {fabric.percentage}%
+                            {fabric.percentageOfTotalDefects}%
                           </span>
                         </div>
                       </td>

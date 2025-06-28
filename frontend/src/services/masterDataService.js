@@ -26,13 +26,25 @@ export const createFabric = async (fabricData) => {
     return response.data;
   } catch (error) {
     console.error("Error Creating Fabric with Compositions:", error);
-    toast.error(error.response.data.message || error.message || error || "Failed to create fabric. Please try again.");
-//    return error.response.data;
+    toast.error(
+      error.response.data.message ||
+        error.message ||
+        error ||
+        "Failed to create fabric. Please try again."
+    );
+    //    return error.response.data;
     throw error;
   }
 };
 // Fetch Fabrics
-export const fetchFabrics = async ({ page, limit, sortField, sortOrder, search, supplier }) => {
+export const fetchFabrics = async ({
+  page,
+  limit,
+  sortField,
+  sortOrder,
+  search,
+  supplier,
+}) => {
   const params = new URLSearchParams({
     page,
     limit,
@@ -41,6 +53,12 @@ export const fetchFabrics = async ({ page, limit, sortField, sortOrder, search, 
     ...(search && { search }),
     ...(supplier && { supplier }),
   }).toString();
+  // ✅ No cached data is used (browser or proxy)
+  // const url = `${API_BASE}/fabrics?${
+  //   params ? `${params}&` : ""
+  // }t=${Date.now()}`;
+  // const response = await axios.get(url);
+  // return response.data;
   const response = await axios.get(`${API_BASE}/fabrics?${params}`);
   return response.data;
 };
@@ -81,16 +99,21 @@ export const createStyle = async (styleData) => {
     toast.success(response.data.style.name + " " + response.data.message);
     return response.data;
   } catch (error) {
-    console.error("Error Creating Fabric with Compositions:", error);
-    toast.error(error.response.data.message || error.message || error || "Failed to create fabric. Please try again.");
-//    return error.response.data;
+    console.error(error.response.data.message || "Error Creating Style:", error);
+    toast.error(
+      error.response.data.message ||
+        error.message ||
+        error ||
+        "Failed to create style. Please try again."
+    );
+    //    return error.response.data;
     throw error;
   }
 };
 
 export const updateStyle = async (id, data) => {
   const res = await axios.put(`${API_BASE}/styles/${id}`, data);
-  toast.success(res.data.name + " Style Updated Successfully" );
+  toast.success(res.data.name + " Style Updated Successfully");
   return res.data;
 };
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Navigate, Routes, Route } from "react-router-dom";
 import { FiSettings } from "react-icons/fi";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
@@ -9,7 +9,6 @@ import "./App.css";
 import { TooltipComponent } from "@syncfusion/ej2-react-popups";
 import { useStateContext } from "./contexts/ContextProvider";
 import { Navbar, Sidebar, Footer, ThemeSettings } from "./components";
-import DefectReport from "./components/DefectReport";
 import { ToastContainer, Zoom } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import OrderList from "./pages/OrderList";
@@ -19,10 +18,8 @@ import WashRecipeDetails from "./pages/WashRecipeDetails";
 import WashRecipeList from "./pages/WashRecipeList";
 import FabricList from "./pages/FabricList";
 import StyleList from "./pages/StyleList";
-import FabricCompositionChart from "./components/FabricCompositionChart";
 import DefectComparison from "./components/DefectComparison";
 import WashRecipeDashboard from "./pages/WashRecipeDashboard";
-import WashRecipeDefectDashboard from "./pages/WashRecipeDefectDashboard";
 
 import { useAuth } from "./contexts/AuthContext"; // ⬅️ ADD THIS
 import PrivateRoute from "./components/PrivateRoute";
@@ -47,7 +44,7 @@ function App() {
         transition={Zoom}
         position="top-center"
         autoClose={3000}
-        toastStyle={{ backgroundColor: currentColor }}
+        // toastStyle={{ backgroundColor: currentColor }}
       />
       {/* ✅ Only show full layout if user is authenticated */}
       {isAuthenticated ? (
@@ -96,11 +93,6 @@ function App() {
                     </PrivateRoute>
                   }
                 />
-                <Route path="/reports/defects" element={<DefectReport />} />
-                <Route
-                  path="/fabricCompositionChart"
-                  element={<FabricCompositionChart />}
-                />
                 <Route
                   path="/defectComparison"
                   element={<DefectComparison />}
@@ -109,10 +101,7 @@ function App() {
                   path="/washRecipeDashboard"
                   element={<WashRecipeDashboard />}
                 />
-                <Route
-                  path="/wRDefectDashboard"
-                  element={<WashRecipeDefectDashboard />}
-                />
+
                 {/* Pages */}
                 <Route
                   path="/defectslist"
@@ -151,6 +140,7 @@ function App() {
 
                 {/* Optional catch route */}
                 <Route path="/unauthorized" element={<Unauthorized />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </div>
           </div>

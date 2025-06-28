@@ -34,11 +34,6 @@ exports.getDefectAnalytics = async (filters = {}) => {
 
     if (filters.defectType) query.defectType = filters.defectType;
 
-    // const { defectType } = filters;
-    // if (defectType && mongoose.Types.ObjectId.isValid(defectType)) {
-    //   query.defectType = new mongoose.Types.ObjectId(defectType);
-    // }
-
     // Get all defects with populated references
     const defects = await Defect.find(query)
       .populate({
@@ -59,11 +54,23 @@ exports.getDefectAnalytics = async (filters = {}) => {
       .populate("defectType")
       .populate("defectPlace")
       .populate("defectProcess")
+      .populate({
+        path: "details.defectPlace",
+        model: "DefectPlace",
+      })
+      .populate({
+        path: "details.defectProcess",
+        model: "DefectProcess",
+        populate: {
+          path: "place",
+          model: "DefectPlace",
+        },
+      })
       .lean();
 
     // Get total count for percentage calculations
     //const totalDefects = defects.length; // counts the number of defect documents.
-    //Each defect document has a defectCount field indicating how many defects it represents.
+    //**Each defect document has a defectCount field indicating how many defects it represents.
     // Using .reduce() sums all defectCount values, giving the true total defect count.
 
     // Sum defectCount from all defects
@@ -86,6 +93,8 @@ exports.getDefectAnalytics = async (filters = {}) => {
       byComposition: [],
       byDefectType: [],
       byDefectPlace: [],
+      byDefectDetailPlace: [],
+      byDefectDetailProcess: [],
       trendData: [],
       monthlyData: [],
     };
@@ -101,6 +110,10 @@ exports.getDefectAnalytics = async (filters = {}) => {
     const defectTypeMap = {};
     const defectPlaceMap = {};
     const lineMap = {};
+
+    // Add these variables after line 50 (after defectPlaceMap initialization)
+    const defectDetailPlaceMap = {};
+    const defectDetailProcessMap = {};
 
     // Process monthly trend data
     const monthlyData = {};
@@ -147,7 +160,8 @@ exports.getDefectAnalytics = async (filters = {}) => {
             name: defect.orderId.fabric.name || "Unknown Fabric",
             code: defect.orderId.fabric.code || "N/A",
             count: 0,
-            percentage: 0,
+            percentageOfTotalDefects: 0,
+            defectRatePerProducedUnit: 0,
             composition:
               defect.orderId.fabric.fabricCompositions
                 ?.map((fc) => {
@@ -218,6 +232,72 @@ exports.getDefectAnalytics = async (filters = {}) => {
         }
         //defectPlaceMap[placeId].count += 1;
         defectPlaceMap[placeId].count += defect.defectCount || 1; // <-- Add the effect value
+      }
+
+      // Add this processing logic inside the defects.forEach() loop, after the existing defect processing
+      // Process defect details for location analytics with hierarchical relationship
+      if (defect.details && defect.details.length > 0) {
+        defect.details.forEach((detail) => {
+          const detailCount = detail.count || 1;
+
+          // Process defect detail place data
+          if (detail.defectPlace) {
+            const detailPlaceId = detail.defectPlace._id
+              ? detail.defectPlace._id.toString()
+              : detail.defectPlace.toString();
+            if (!defectDetailPlaceMap[detailPlaceId]) {
+              defectDetailPlaceMap[detailPlaceId] = {
+                id: detailPlaceId,
+                name: detail.defectPlace.name || "Unknown Detail Location",
+                count: 0,
+                percentage: 0,
+                processes: {}, // Track processes under this place
+              };
+            }
+            defectDetailPlaceMap[detailPlaceId].count += detailCount;
+
+            // If there's a process associated with this detail, link it to the place
+            if (detail.defectProcess) {
+              const processId = detail.defectProcess._id
+                ? detail.defectProcess._id.toString()
+                : detail.defectProcess.toString();
+              const processName =
+                detail.defectProcess.name || "Unknown Process";
+
+              if (!defectDetailPlaceMap[detailPlaceId].processes[processId]) {
+                defectDetailPlaceMap[detailPlaceId].processes[processId] = {
+                  id: processId,
+                  name: processName,
+                  count: 0,
+                };
+              }
+              defectDetailPlaceMap[detailPlaceId].processes[processId].count +=
+                detailCount;
+            }
+          }
+
+          // Process defect detail process data (maintaining separate tracking)
+          if (detail.defectProcess) {
+            const detailProcessId = detail.defectProcess._id
+              ? detail.defectProcess._id.toString()
+              : detail.defectProcess.toString();
+            if (!defectDetailProcessMap[detailProcessId]) {
+              defectDetailProcessMap[detailProcessId] = {
+                id: detailProcessId,
+                name: detail.defectProcess.name || "Unknown Detail Process",
+                placeId: detail.defectProcess.place
+                  ? detail.defectProcess.place._id || detail.defectProcess.place
+                  : null,
+                placeName: detail.defectProcess.place
+                  ? detail.defectProcess.place.name || "Unknown Place"
+                  : "No Place Assigned",
+                count: 0,
+                percentage: 0,
+              };
+            }
+            defectDetailProcessMap[detailProcessId].count += detailCount;
+          }
+        });
       }
 
       // Process composition data if available
@@ -291,7 +371,15 @@ exports.getDefectAnalytics = async (filters = {}) => {
     result.byFabric = Object.values(fabricMap)
       .map((item) => ({
         ...item,
-        percentage: ((item.count / totalDefects) * 100).toFixed(1),
+        // Share of total defects
+        percentageOfTotalDefects: ((item.count / totalDefects) * 100).toFixed(
+          1
+        ),
+        // Defect rate per produced unit
+        defectRatePerProducedUnit:
+          item.totalProduced > 0
+            ? ((item.count / item.totalProduced) * 100).toFixed(2)
+            : "0.00",
       }))
       .sort((a, b) => b.count - a.count);
 
@@ -324,6 +412,34 @@ exports.getDefectAnalytics = async (filters = {}) => {
       }))
       .sort((a, b) => b.count - a.count);
 
+    // Add these new result arrays after the existing byDefectPlace assignment (around line 280)
+    result.byDefectDetailPlace = Object.values(defectDetailPlaceMap)
+      .map((item) => ({
+        ...item,
+        percentage: ((item.count / totalDefects) * 100).toFixed(1),
+        processes: Object.values(item.processes).sort(
+          (a, b) => b.count - a.count
+        ), // Convert to array and sort
+        // Verification: sum of process counts should equal place count
+        processCountSum: Object.values(item.processes).reduce(
+          (sum, proc) => sum + proc.count,
+          0
+        ),
+        isCountMatched:
+          Object.values(item.processes).reduce(
+            (sum, proc) => sum + proc.count,
+            0
+          ) === item.count,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    result.byDefectDetailProcess = Object.values(defectDetailProcessMap)
+      .map((item) => ({
+        ...item,
+        percentage: ((item.count / totalDefects) * 100).toFixed(1),
+      }))
+      .sort((a, b) => b.count - a.count);
+
     // Convert monthly data to sorted array
     result.trendData = Object.values(monthlyData).sort((a, b) =>
       a.month.localeCompare(b.month)
@@ -350,6 +466,18 @@ exports.getDefectAnalytics = async (filters = {}) => {
         ? ((totalDefects / totalProducedItems) * 100).toFixed(2)
         : "0.00";
 
+    // Add hierarchical summary for verification
+    result.hierarchicalSummary = {
+      totalPlaces: Object.keys(defectDetailPlaceMap).length,
+      totalProcesses: Object.keys(defectDetailProcessMap).length,
+      verificationPassed: Object.values(defectDetailPlaceMap).every(
+        (place) =>
+          Object.values(place.processes).reduce(
+            (sum, proc) => sum + proc.count,
+            0
+          ) === place.count
+      ),
+    };
     // Add to summary
     result.summary.defectRatio = defectRatio;
     result.summary.totalProducedItems = totalProducedItems;
@@ -360,83 +488,6 @@ exports.getDefectAnalytics = async (filters = {}) => {
     throw new Error("Failed to fetch defect analytics");
   }
 };
-
-/**
- * Get top defective items by category
- * @param {string} category - Category to analyze (fabric, style, composition)
- * @param {number} limit - Number of items to return
- * @returns {Promise<Array>} Top defective items
- */
-exports.getTopDefectiveItems = async (category, limit = 5) => {
-  try {
-    const analytics = await exports.getDefectAnalytics();
-
-    switch (category) {
-      case "fabric":
-        return analytics.byFabric.slice(0, limit);
-      case "style":
-        return analytics.byStyle.slice(0, limit);
-      case "composition":
-        return analytics.byComposition.slice(0, limit);
-      default:
-        throw new Error("Invalid category specified");
-    }
-  } catch (error) {
-    console.error(`Error fetching top defective ${category}:`, error);
-    throw new Error(`Failed to fetch top defective ${category}`);
-  }
-};
-
-/**
- * Calculate defect rate for a specific time period
- * @param {Date} startDate - Start date
- * @param {Date} endDate - End date
- * @returns {Promise<Object>} Defect rate statistics
- */
-// exports.getDefectRate = async (startDate, endDate) => {
-//   try {
-
-//     const result = await Defect.aggregate([
-//       {
-//         $match: {
-//           detectedDate: { $gte: startDate, $lte: endDate }
-//         }
-//       },
-//       {
-//         $group: {
-//           _id: null,
-//           totalDefectCount: { $sum: "$defectCount" }
-//         }
-//       }
-//     ]);
-
-//     const defectCount = result[0]?.totalDefectCount || 0;
-//     // const defectCount = await Defect.countDocuments({
-//     //   detectedDate: { $gte: startDate, $lte: endDate }
-//     // });
-
-//     const ordersInPeriod = await Order.find({
-//       createdAt: { $gte: startDate, $lte: endDate }
-//     });
-
-//     const totalOrderQty = ordersInPeriod.reduce((sum, order) => sum + (order.orderQty || 0), 0);
-
-//     return {
-//       totalDefects: defectCount,
-//       totalOrderQuantity: totalOrderQty,
-//       defectRate: totalOrderQty > 0 ? (defectCount / totalOrderQty * 100).toFixed(2) : 0,
-//       period: {
-//         start: startDate,
-//         end: endDate
-//       }
-//     };
-//   } catch (error) {
-//     console.error('Error calculating defect rate:', error);
-//     throw new Error('Failed to calculate defect rate');
-//   }
-// };
-
-//************************************************************************************************************************* */
 
 /**
  * Get wash recipe defect analytics
@@ -705,56 +756,6 @@ exports.getWashRecipeDefectAnalytics = async (filters = {}) => {
       { min: 71, max: 90, name: "71-90°C" },
       { min: 91, max: Number.POSITIVE_INFINITY, name: "91°C+" },
     ];
-
-    // const temperatureDefectMap = new Map(
-    //   temperatureRanges.map((range) => [range.name, 0])
-    // );
-
-    // for (const recipe of filteredWashRecipes) {
-    //   if (!recipeIds.includes(recipe._id.toString())) continue;
-
-    //   const defectCount = recipeDefectMap.has(recipe._id.toString())
-    //     ? recipeDefectMap.get(recipe._id.toString()).defectCount
-    //     : 0;
-
-    //   if (defectCount === 0) continue;
-
-    //   // Process each step in the recipe to get temperature data
-    //   for (const step of recipe.steps || []) {
-    //     if (step.temp) {
-    //       const temp = Number(step.temp);
-    //       if (!isNaN(temp)) {
-    //         const tempRange = temperatureRanges.find(
-    //           (range) => temp >= range.min && temp <= range.max
-    //         );
-
-    //         if (tempRange) {
-    //           temperatureDefectMap.set(
-    //             tempRange.name,
-    //             temperatureDefectMap.get(tempRange.name) + defectCount
-    //           );
-    //         }
-    //       }
-    //     }
-    //   }
-    // }
-
-    // const byTemperature = Array.from(temperatureDefectMap.entries())
-    //   .map(([name, count]) => ({
-    //     name,
-    //     count,
-    //     percentage:
-    //       totalWashRecipeDefects > 0
-    //         ? ((count / totalWashRecipeDefects) * 100).toFixed(2)
-    //         : 0,
-    //   }))
-    //   .filter((item) => item.count > 0)
-    //   .sort((a, b) => {
-    //     // Sort numerically by the starting temperature in the range
-    //     const aStart = parseInt(a.name.split("-")[0]);
-    //     const bStart = parseInt(b.name.split("-")[0]);
-    //     return aStart - bStart;
-    //   });
 
     // Initialize map with count and a Set of recipe IDs per temperature range
     const temperatureDefectMap = new Map(
@@ -1036,286 +1037,6 @@ exports.getWashRecipeDefectAnalytics = async (filters = {}) => {
 //****************************************************************************************************************** */
 
 //****************************************************************************************************************** */
-
-/**
- * Get comprehensive wash recipe defect analytics data
- * @param {Object} filters - Optional filters
- * @returns {Promise<Object>} Wash recipe analytics data
- */
-exports.getWashRecipeDefectAnalytics2 = async (filters = {}) => {
-  try {
-    // Build query based on filters
-    const query = {};
-
-    // Apply date range filter if provided
-    if (filters.startDate && filters.endDate) {
-      query.detectedDate = {
-        $gte: new Date(filters.startDate),
-        $lte: new Date(filters.endDate),
-      };
-    }
-
-    // Apply other filters
-    if (filters.severity) query.severity = filters.severity;
-    if (filters.status) query.status = filters.status;
-
-    // Get all defects with populated references, focusing on wash recipe
-    const defects = await Defect.find(query)
-      .populate({
-        path: "orderId",
-        populate: [
-          {
-            path: "washRecipes",
-            populate: [
-              {
-                path: "steps",
-                populate: {
-                  path: "stepItems",
-                  populate: { path: "chemicalItemId" },
-                },
-              },
-              {
-                path: "recipeProcessId", // <-- Populate processes!
-                // Optionally, you can further populate laundryProcessId if you want its name:
-                populate: { path: "laundryProcessId" },
-              },
-            ],
-          },
-          { path: "fabric" },
-          { path: "style" },
-        ],
-      })
-      .populate("defectName")
-      .populate("defectType")
-      .populate("defectProcess")
-      .lean();
-
-    // Calculate total defects
-    const totalDefects = defects.reduce(
-      (sum, defect) => sum + (defect.defectCount || 1),
-      0
-    );
-
-    // Initialize result object
-    const result = {
-      summary: {
-        totalDefects,
-        totalWashRecipeDefects: 0,
-        washRecipeDefectRatio: 0,
-      },
-      byWashType: [],
-      byChemical: [],
-      byProcess: [],
-      byTemperature: [],
-      byWaterRatio: [],
-      byDuration: [],
-    };
-
-    // Track unique wash types, chemicals, processes, etc.
-    const washTypeMap = {};
-    const chemicalMap = {};
-    const processMap = {};
-    const temperatureMap = {};
-    const waterRatioMap = {};
-    const durationMap = {};
-
-    // Count wash recipe defects
-    let washRecipeDefectCount = 0;
-
-    // Process each defect
-    defects.forEach((defect) => {
-      // Skip if no wash recipe data
-      if (!defect.orderId || !defect.orderId.washRecipes) return;
-
-      const defectCount = defect.defectCount || 1;
-      washRecipeDefectCount += defectCount;
-
-      const washRecipes = Array.isArray(defect.orderId.washRecipes)
-        ? defect.orderId.washRecipes
-        : [];
-
-      washRecipes.forEach((washRecipe) => {
-        // Process wash type
-        if (washRecipe.washType) {
-          const washType = washRecipe.washType;
-          if (!washTypeMap[washType]) {
-            washTypeMap[washType] = {
-              name: washType,
-              count: 0,
-              percentage: 0,
-            };
-          }
-          washTypeMap[washType].count += defectCount;
-        }
-
-        // Process temperature ranges
-        (washRecipe.steps || []).forEach((step) => {
-          if (step.temp) {
-            // Create temperature ranges (e.g., "30-40°C")
-            const temp = parseInt(step.temp);
-            const tempRange = `${Math.floor(temp / 10) * 10}-${
-              Math.floor(temp / 10) * 10 + 10
-            }°C`;
-
-            if (!temperatureMap[tempRange]) {
-              temperatureMap[tempRange] = {
-                name: tempRange,
-                count: 0,
-                percentage: 0,
-              };
-            }
-            temperatureMap[tempRange].count += defectCount;
-          }
-        });
-
-        // Process water ratio (liters)
-        (washRecipe.steps || []).forEach((step) => {
-          if (step.liters) {
-            // Create water ratio ranges
-            const ratio = parseInt(step.liters);
-            const ratioRange = `${Math.floor(ratio / 5) * 5}-${
-              Math.floor(ratio / 5) * 5 + 5
-            }L`;
-
-            if (!waterRatioMap[ratioRange]) {
-              waterRatioMap[ratioRange] = {
-                name: ratioRange,
-                count: 0,
-                percentage: 0,
-              };
-            }
-            waterRatioMap[ratioRange].count += defectCount;
-          }
-        });
-
-        // Process duration (time)
-        (washRecipe.steps || []).forEach((step) => {
-          if (step.time) {
-            // Create duration ranges in minutes
-            const duration = parseInt(step.time);
-            const durationRange = `${Math.floor(duration / 15) * 15}-${
-              Math.floor(duration / 15) * 15 + 15
-            }min`;
-
-            if (!durationMap[durationRange]) {
-              durationMap[durationRange] = {
-                name: durationRange,
-                count: 0,
-                percentage: 0,
-              };
-            }
-            durationMap[durationRange].count += defectCount;
-          }
-        });
-
-        // Process wash steps and chemicals
-
-        // Process chemicals
-        (washRecipe.steps || []).forEach((step) => {
-          // Check if step has chemical items
-          if (!step.stepItems || step.stepItems.length === 0) return;
-          // Process each chemical item
-          step.stepItems.forEach((stepItem) => {
-            // Check if stepItem has chemicalItemId
-            if (stepItem.chemicalItemId) {
-              // If populated, chemicalItemId will be an object with a .name property
-              const chemicalName = stepItem.chemicalItemId.name;
-              if (chemicalName) {
-                if (!chemicalMap[chemicalName]) {
-                  chemicalMap[chemicalName] = {
-                    name: chemicalName,
-                    count: 0,
-                    percentage: 0,
-                  };
-                }
-                chemicalMap[chemicalName].count += defectCount;
-              }
-            }
-          });
-        });
-        // Process recipe process (e.g., SPRAY, DRY)
-
-        (washRecipe.recipeProcessId || []).forEach((process) => {
-          if (process.recipeProcessType) {
-            const processType = process.recipeProcessType;
-            if (!processMap[processType]) {
-              processMap[processType] = {
-                name: processType,
-                count: 0,
-                percentage: 0,
-              };
-            }
-            processMap[processType].count += defectCount;
-          }
-        });
-
-        // if (washRecipe.RecipeProcess && washRecipe.RecipeProcess.length > 0) {
-        //   washRecipe.RecipeProcess.forEach((step) => {
-        //     // Process step process (SPRAY, DRY, etc.)
-        //     if (step.recipeProcessType) {
-        //       const process = step.recipeProcessType;
-        //       if (!processMap[process]) {
-        //         processMap[process] = {
-        //           name: process,
-        //           count: 0,
-        //           percentage: 0,
-        //         };
-        //       }
-        //       processMap[process].count += defectCount;
-        //     }
-        //   });
-        // }
-      });
-    });
-
-    // Calculate percentages and sort results
-    const calculatePercentageAndSort = (map, totalCount) => {
-      return Object.values(map)
-        .map((item) => ({
-          ...item,
-          percentage: ((item.count / totalCount) * 100).toFixed(1),
-        }))
-        .sort((a, b) => b.count - a.count);
-    };
-
-    // Update result with all processed data
-    result.summary.totalWashRecipeDefects = washRecipeDefectCount;
-    result.summary.washRecipeDefectRatio =
-      totalDefects > 0
-        ? ((washRecipeDefectCount / totalDefects) * 100).toFixed(1)
-        : "0.0";
-
-    result.byWashType = calculatePercentageAndSort(
-      washTypeMap,
-      washRecipeDefectCount
-    );
-    result.byChemical = calculatePercentageAndSort(
-      chemicalMap,
-      washRecipeDefectCount
-    );
-    result.byProcess = calculatePercentageAndSort(
-      processMap,
-      washRecipeDefectCount
-    );
-    result.byTemperature = calculatePercentageAndSort(
-      temperatureMap,
-      washRecipeDefectCount
-    );
-    result.byWaterRatio = calculatePercentageAndSort(
-      waterRatioMap,
-      washRecipeDefectCount
-    );
-    result.byDuration = calculatePercentageAndSort(
-      durationMap,
-      washRecipeDefectCount
-    );
-
-    return result;
-  } catch (error) {
-    console.error("Error fetching wash recipe defect analytics:", error);
-    throw new Error("Failed to fetch wash recipe defect analytics 2");
-  }
-};
 
 /**
  * Get comparison data for defect analysis

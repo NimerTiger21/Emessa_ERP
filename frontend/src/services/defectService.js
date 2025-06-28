@@ -31,8 +31,8 @@ export const createDefect = async ({ formDataWithImages }) => {
 
 export const updateDefect = async ({editDefect, formDataWithImages }) => {
   try {
-    console.log("formDataWithImage=>  ", formDataWithImages); // Debugging line
-    console.log("editDefect=>  ", editDefect); // Debugging line
+    //console.log("formDataWithImage=>  ", formDataWithImages); // Debugging line
+    //console.log("editDefect=>  ", editDefect); // Debugging line
     const response = await axios.put(
               `${API_URL}/${editDefect._id}`,
               formDataWithImages, {
@@ -41,7 +41,7 @@ export const updateDefect = async ({editDefect, formDataWithImages }) => {
                 },
               }
             ); // Update defect if in edit mode
-    console.log("response.data=>  ", response.data); // Debugging line
+    //console.log("response.data=>  ", response.data); // Debugging line
     return response.data;
   } catch (error) {
     console.error("Error updating defect:", error);
@@ -62,7 +62,7 @@ export const getDefectById = async (defectId) => {
 export const deleteDefect = async (deleteId) => {
   try {
     const response = await axios.delete(`${API_URL}/${deleteId}`);
-    toast.success("Defect deleted successfully");
+    toast.success(response.data.message || "Defect deleted successfully");
     return response.data;
   } catch (error) {
     console.error("Error deleting defect:", error);

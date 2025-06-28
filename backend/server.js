@@ -5,7 +5,6 @@ const dotenv = require("dotenv");
 const connectDB = require("./config/connectToDb");
 const defectRoutes = require("./routes/defectRoutes");
 const analyticsRoutes = require("./routes/defectAnalyticsRoutes");
-const reportRoutes = require("./routes/reportRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const washRoutes = require("./routes/washRoutes");
 const laundryStepRoutes = require("./routes/laundryStepRoutes");
@@ -13,7 +12,7 @@ const laundryProcessRoutes = require("./routes/laundryProcessRoutes");
 const chemicalItemRoutes = require("./routes/chemicalItemRoutes");
 const stepItemRoutes = require("./routes/stepItemRoutes");
 
-const cookieParser = require('cookie-parser');
+const cookieParser = require("cookie-parser");
 
 const authRouter = require("./routes/auth");
 
@@ -35,10 +34,25 @@ app.use(cookieParser()); // Uncomment if cookies are required
 // Connect to the database
 connectDB();
 
+// app.use('/api', (req, res, next) => {
+//   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+//   res.set('Pragma', 'no-cache');
+//   res.set('Expires', '0');
+//   next();
+// });
+
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+
+
+
 // API Routes
 app.use("/api/defects", defectRoutes);
 app.use("/api/analytics", analyticsRoutes);
-app.use("/api/reports", reportRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/wash-recipes", washRoutes);
 // Laundry Step Routes

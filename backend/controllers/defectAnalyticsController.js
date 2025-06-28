@@ -1,5 +1,5 @@
 // src/controllers/defectAnalyticsController.js
-const analyticsService = require('../services/defectAnalyticsService');
+const analyticsService = require("../services/defectAnalyticsService");
 
 /**
  * Get comprehensive defect analytics data
@@ -16,79 +16,18 @@ exports.getDefectAnalytics = async (req, res) => {
       status: req.query.status,
       defectType: req.query.defectType, // ✅ now included here
     };
-    
+
     const analytics = await analyticsService.getDefectAnalytics(filters);
-    
-    res.status(200).json({
-      success: true,
-      data: analytics
-    });
-  } catch (error) {
-    console.error('Error in getDefectAnalytics controller:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to fetch defect analytics'
-    });
-  }
-};
 
-/**
- * Get top defective items by category
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-exports.getTopDefectiveItems = async (req, res) => {
-  try {
-    const { category, limit } = req.params;
-    
-    const topItems = await analyticsService.getTopDefectiveItems(
-      category,
-      parseInt(limit) || 5
-    );
-    
     res.status(200).json({
       success: true,
-      data: topItems
+      data: analytics,
     });
   } catch (error) {
-    console.error('Error in defectAnalyticsController getTopDefectiveItems controller:', error);
+    console.error("Error in getDefectAnalytics controller:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to fetch top defective items'
-    });
-  }
-};
-
-/**
- * Get defect rate for a time period
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-exports.getDefectRate = async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query;
-    
-    if (!startDate || !endDate) {
-      return res.status(400).json({
-        success: false,
-        message: 'Start date and end date are required'
-      });
-    }
-    
-    const defectRate = await analyticsService.getDefectRate(
-      new Date(startDate),
-      new Date(endDate)
-    );
-    
-    res.status(200).json({
-      success: true,
-      data: defectRate
-    });
-  } catch (error) {
-    console.error('Error in getDefectRate controller:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to calculate defect rate'
+      message: error.message || "Failed to fetch defect analytics",
     });
   }
 };
@@ -106,92 +45,80 @@ exports.getWashRecipeDefectAnalytics = async (req, res) => {
       endDate: req.query.endDate,
       severity: req.query.severity,
       status: req.query.status,
-      washType: req.query.washType
+      washType: req.query.washType,
     };
-    
+
     // Validate date range if provided
     if (filters.startDate && filters.endDate) {
       const startDate = new Date(filters.startDate);
       const endDate = new Date(filters.endDate);
-      
+
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid date format. Please use YYYY-MM-DD format.'
+          message: "Invalid date format. Please use YYYY-MM-DD format.",
         });
       }
-      
+
       if (startDate > endDate) {
         return res.status(400).json({
           success: false,
-          message: 'Start date cannot be after end date.'
+          message: "Start date cannot be after end date.",
         });
       }
     }
-    
+
     // Validate severity if provided
-    if (filters.severity && !['Low', 'Medium', 'High'].includes(filters.severity)) {
+    if (
+      filters.severity &&
+      !["Low", "Medium", "High"].includes(filters.severity)
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid severity value. Must be Low, Medium, or High.'
+        message: "Invalid severity value. Must be Low, Medium, or High.",
       });
     }
-    
+
     // Validate status if provided
-    if (filters.status && !['Open', 'In Progress', 'Resolved'].includes(filters.status)) {
+    if (
+      filters.status &&
+      !["Open", "In Progress", "Resolved"].includes(filters.status)
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status value. Must be Open, In Progress, or Resolved.'
+        message:
+          "Invalid status value. Must be Open, In Progress, or Resolved.",
       });
     }
-    
+
     // Validate washType if provided
-    if (filters.washType && !['Size set', 'SMS', 'Proto', 'Production', 'Fitting Sample'].includes(filters.washType)) {
+    if (
+      filters.washType &&
+      !["Size set", "SMS", "Proto", "Production", "Fitting Sample"].includes(
+        filters.washType
+      )
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid wash type value.'
+        message: "Invalid wash type value.",
       });
     }
-    
+
     // Get the analytics data from the service
-    const analytics = await analyticsService.getWashRecipeDefectAnalytics(filters);
-    
+    const analytics = await analyticsService.getWashRecipeDefectAnalytics(
+      filters
+    );
+
     // Return success response with data
     res.status(200).json({
       success: true,
-      data: analytics
+      data: analytics,
     });
   } catch (error) {
-    console.error('Error in getWashRecipeDefectAnalytics controller:', error);
+    console.error("Error in getWashRecipeDefectAnalytics controller:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to fetch wash recipe defect analytics'
-    });
-  }
-};
-
-exports.getWashRecipeDefectAnalytics2 = async (req, res) => {
-  try {
-    // Extract filters from query parameters
-    const filters = {
-      startDate: req.query.startDate,
-      endDate: req.query.endDate,
-      severity: req.query.severity,
-      status: req.query.status,
-      //washType: req.query.washType
-    };
-    
-    const analytics = await analyticsService.getWashRecipeDefectAnalytics2(filters);
-    
-    res.status(200).json({
-      success: true,
-      data: analytics
-    });
-  } catch (error) {
-    console.error('Error in getWashRecipeDefectAnalytics controller:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to fetch wash recipe defect analytics'
+      message: error.message || "Failed to fetch wash recipe defect analytics",
     });
   }
 };
@@ -209,20 +136,20 @@ exports.getComparisonData = async (req, res) => {
       startDate: req.query.startDate,
       endDate: req.query.endDate,
       severity: req.query.severity,
-      metric: req.query.metric
+      metric: req.query.metric,
     };
-    
+
     const comparisonData = await analyticsService.getComparisonData(filters);
-    
+
     res.status(200).json({
       success: true,
-      data: comparisonData
+      data: comparisonData,
     });
   } catch (error) {
-    console.error('Error in getComparisonData controller:', error);
+    console.error("Error in getComparisonData controller:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to fetch comparison data'
+      message: error.message || "Failed to fetch comparison data",
     });
   }
 };

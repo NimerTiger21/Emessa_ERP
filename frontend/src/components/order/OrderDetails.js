@@ -562,11 +562,7 @@ const OrderDetails = () => {
                   <p className="text-gray-500 text-sm mb-1">Quality Impact</p>
                   <div className="flex items-end mt-2">
                     <span className="text-2xl font-bold">
-                      {(() => {
-                        // Calculate weighted quality impact (just for display)
-                        // const highImpact =
-                        //   defects.filter((d) => d.severity === "High").length *
-                        //   3;
+                      {(() => {                        
                         const highImpact =
                           defects
                             .filter((d) => d.severity === "High")
@@ -584,58 +580,19 @@ const OrderDetails = () => {
                           1;
                         const weightedImpact =
                           highImpact + mediumImpact + lowImpact;
-                        // const totalImpact =
-                        //   highImpact + mediumImpact + lowImpact;
-                        //const maxPossibleImpact = defects.length * 3;
-
-                        //const maxPossibleImpact = totalDefects * 3;
+                        
                         const maxPossibleImpact = order.orderQty * 3;
                         const severityScore =
                           maxPossibleImpact > 0
                             ? weightedImpact / maxPossibleImpact
                             : 0;
-                        // const adjustedImpact =
-                        //   severityScore * (defectRate / 100);
 
                         const adjustedImpact = weightedImpact / maxPossibleImpact
-
-
-                        // const qualityScore = Math.max(
-                        //   100 - Math.round(adjustedImpact * 100),
-                        //   0
-                        // );
 
                         const qualityScore = Math.max(
                           100 - parseFloat((adjustedImpact * 100).toFixed(1)),
                           0
                         );
-
-                        // const qualityScore =
-                        //   maxPossibleImpact > 0
-                        //     ? Math.max(
-                        //         100 -
-                        //           Math.round(
-                        //             (totalImpact / maxPossibleImpact) * 100
-                        //           ),
-                        //         0
-                        //       )
-                        //     : 100;
-                        // console.log(
-                        //   "High:",
-                        //   highImpact,
-                        //   "Medium:",
-                        //   mediumImpact,
-                        //   "Low:",
-                        //   lowImpact
-                        // );
-                        // console.log(
-                        //   "Weighted:",
-                        //   weightedImpact,
-                        //   "Max:",
-                        //   maxPossibleImpact,
-                        //   "Score:",
-                        //   qualityScore
-                        // );
 
                         return qualityScore;
                       })()}
@@ -660,6 +617,15 @@ const OrderDetails = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Name
                         </th>
+                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Place
+                        </th>
+                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Process
+                        </th>
+                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Holes/Op
+                        </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Count
                         </th>
@@ -683,6 +649,15 @@ const OrderDetails = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {defect.defectName?.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {defect.defectPlace?.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {defect.defectProcess?.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {defect.holesOrOperation}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {defect.defectCount}

@@ -26,31 +26,26 @@ const OrderModal = ({
     season: "",
     orderNo: "",
     orderQty: "",
-    orderDate: new Date().toLocaleDateString(),
-    deliveryDate: new Date("2015-03-25").toLocaleDateString(),
+    orderDate: new Date(),
+    deliveryDate: new Date(),
     style: null,
     styleNo: "",
     keyNo: "",
     articleNo: "",
     fabricSupplier: null,
     fabric: null,
-    //fabricComposition: "",
-    //emessaOrderNo: "",
-    //line: "",
-    //deliveredQty: "",
-    //currentStage: "Fabric Reservation",
-    //stageProgress: 0,
-    //barcode7: "",
   });
+
   const [customers, setCustomers] = useState([]);
   const [brands, setBrands] = useState([]);
   const [filteredBrands, setFilteredBrands] = useState([]);
   const [filteredStyles, setFilteredStyles] = useState([]);
-
+  const [availableStyleNumbers, setAvailableStyleNumbers] = useState([]);
   const [styles, setStyles] = useState([]);
   const [fabricSuppliers, setFabricSuppliers] = useState([]);
   const [fabrics, setFabrics] = useState([]);
   const [errors, setErrors] = useState({});
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Load master data on component mount
   useEffect(() => {
@@ -95,25 +90,63 @@ const OrderModal = ({
       brands.length &&
       styles.length &&
       fabrics.length &&
-      fabricSuppliers.length
+      fabricSuppliers.length &&
+      !isInitialized
     ) {
-      console.log("editOrder: ", editOrder);
+      // Find all related objects
+      const selectedCustomer = customers.find(
+        (c) => c._id === editOrder.customer?._id
+      );
+      const selectedBrand = brands.find((b) => b._id === editOrder.brand?._id);
+      const selectedStyle = styles.find((s) => s._id === editOrder.style?._id);
+      const selectedFabric = fabrics.find(
+        (f) => f._id === editOrder.fabric?._id
+      );
+      const selectedFabricSupplier = fabricSuppliers.find(
+        (fs) => fs._id === editOrder.fabricSupplier?._id
+      );
+
+      // Set filtered brands and styles based on selections
+      if (selectedCustomer) {
+        const customerBrands = brands.filter(
+          (b) => b.customer === selectedCustomer._id
+        );
+        setFilteredBrands(customerBrands);
+      }
+
+      if (selectedBrand) {
+        const brandStyles = styles.filter(
+          (s) => s.brand?._id === selectedBrand._id
+        );
+        setFilteredStyles(brandStyles);
+      }
+
+      // Get available style numbers
+      const styleNumbers = selectedStyle?.styleNo || [];
+      setAvailableStyleNumbers(styleNumbers);
+
+      // Prepare the form data
       const mappedEditOrder = {
         ...editOrder,
-        customer:
-          customers.find((c) => c._id === editOrder.customer?._id) || null,
-        brand: brands.find((b) => b._id === editOrder.brand?._id) || null,
-        style: styles.find((s) => s._id === editOrder.style?._id) || null,
-        fabric: fabrics.find((f) => f._id === editOrder.fabric?._id) || null,
-        fabricSupplier:
-          fabricSuppliers.find(
-            (fs) => fs._id === editOrder.fabricSupplier?._id
-          ) || null,
+        customer: selectedCustomer || null,
+        brand: selectedBrand || null,
+        style: selectedStyle || null,
+        fabric: selectedFabric || null,
+        fabricSupplier: selectedFabricSupplier || null,
+        orderDate: editOrder.orderDate ? new Date(editOrder.orderDate) : null,
+        deliveryDate: editOrder.deliveryDate
+          ? new Date(editOrder.deliveryDate)
+          : null,
+        styleNo: editOrder.styleNo || "",
       };
-      setFormData(mappedEditOrder); // Load order data for editing
+
+      setFormData(mappedEditOrder);
+      setIsInitialized(true);
+      console.log("Initialized formData for editing:", mappedEditOrder);
+      console.log("Available style numbers:", styleNumbers);
+      console.log("Selected style:", selectedStyle);
     }
-    //console.log("editOrder: ", editOrder);
-  }, [editOrder, customers, brands, styles, fabrics, fabricSuppliers]);
+  }, [editOrder, customers, brands, styles, fabrics, fabricSuppliers, isInitialized]);
 
   // Filter brands based on selected customer
   useEffect(() => {
@@ -123,102 +156,158 @@ const OrderModal = ({
       );
       setFilteredBrands(filtered);
 
-      // Keep brand if it's still valid, otherwise reset it
-      setFormData((prev) => ({
-        ...prev,
-        brand: filtered.some((b) => b._id === prev.brand?._id)
-          ? prev.brand
-          : "",
-      }));
+      // Only reset brand if we're not initializing or if brand is not valid
+      if (isInitialized || !editOrder) {
+        setFormData((prev) => ({
+          ...prev,
+          brand: filtered.some((b) => b._id === prev.brand?._id)
+            ? prev.brand
+            : null,
+        }));
+      }
+    } else {
+      setFilteredBrands([]);
+      if (isInitialized || !editOrder) {
+        setFormData((prev) => ({
+          ...prev,
+          brand: null,
+        }));
+      }
     }
-  }, [formData.customer, brands]);
+  }, [formData.customer, brands, isInitialized, editOrder]);
 
+  // Filter styles based on selected brand
   useEffect(() => {
     if (formData.brand) {
       const filtered = styles.filter(
-        (s) => s.brand?._id === formData.brand?._id // ✅ Be sure both are ObjectId or strings
+        (s) => s.brand?._id === formData.brand?._id
       );
       setFilteredStyles(filtered);
 
-      // Optional: clear style if it's not under the selected brand
-      setFormData((prev) => ({
-        ...prev,
-        style: filtered.some((s) => s._id === prev.style?._id)
-          ? prev.style
-          : "",
-      }));
+      // Only reset style if we're not initializing or if style is not valid
+      if (isInitialized || !editOrder) {
+        const isStyleValid = filtered.some((s) => s._id === formData.style?._id);
+        if (!isStyleValid) {
+          setFormData((prev) => ({
+            ...prev,
+            style: null,
+            styleNo: "",
+          }));
+          setAvailableStyleNumbers([]);
+        }
+      }
+    } else {
+      setFilteredStyles([]);
+      setAvailableStyleNumbers([]);
+      if (isInitialized || !editOrder) {
+        setFormData((prev) => ({
+          ...prev,
+          style: null,
+          styleNo: "",
+        }));
+      }
     }
-  }, [formData.brand, styles]);
+  }, [formData.brand, styles, isInitialized, editOrder]);
 
-  // Auto-fill style number when style is selected
-  // useEffect(() => {
-  //   if (formData.style) {
-  //     const selectedStyle = styles.find((s) => s._id === formData.style?._id);
-  //     setFormData((prev) => ({
-  //       ...prev,
-  //       styleNo: selectedStyle ? selectedStyle.styleNo : "", // Auto-fill style number
-  //     }));
-  //   }
-  // }, [formData.style, styles]);
-
+  // Update available style numbers when style is selected (only for new selections, not during initialization)
   useEffect(() => {
     if (formData.style) {
       const selectedStyle = styles.find((s) => s._id === formData.style?._id);
 
-      if (selectedStyle) {
-        setFormData((prev) => ({
-          ...prev,
-          styleNo: selectedStyle.styleNo || "", // Auto-fill or clear style number
-        }));
+      if (selectedStyle && Array.isArray(selectedStyle.styleNo)) {
+        setAvailableStyleNumbers(selectedStyle.styleNo);
+
+        // Only clear styleNo if it's not in the available numbers and we're not editing
+        if (!editOrder || !selectedStyle.styleNo.includes(formData.styleNo)) {
+          // Don't clear if we're initializing and the styleNo exists in the available numbers
+          const shouldClearStyleNo = !selectedStyle.styleNo.includes(formData.styleNo);
+          if (shouldClearStyleNo) {
+            setFormData((prev) => ({
+              ...prev,
+              styleNo: "",
+            }));
+          }
+        }
       } else {
-        // If style is not found, clear the styleNo
+        setAvailableStyleNumbers([]);
         setFormData((prev) => ({
           ...prev,
           styleNo: "",
         }));
       }
-    } else {
-      // If no style is selected, clear the styleNo
+    } else if (isInitialized && !formData.style) {
+      setAvailableStyleNumbers([]);
       setFormData((prev) => ({
         ...prev,
         styleNo: "",
       }));
     }
-  }, [formData.style, styles]);
+  }, [formData.style, styles, editOrder]);
 
   // Handle form input changes
   const handleChange = (event) => {
     const { name, value } = event.target;
-    //console.log("name:", name, "value:", value);
-    console.log("handleChange formData: ", formData);
-    // Define a lookup map for dropdowns that store objects instead of just values
+
     const lookupMap = {
       customer: customers,
-      style: styles,
+      style: filteredStyles,
       fabric: fabrics,
       brand: filteredBrands,
     };
 
-    // Check if the field requires object lookup
     if (lookupMap[name]) {
-      setFormData({
-        ...formData,
-        [name]: lookupMap[name]?.find((item) => item._id === value) || value, // Store object
-      });
+      const selectedItem = lookupMap[name]?.find((item) => item._id === value);
+
+      setFormData((prev) => ({
+        ...prev,
+        [name]: selectedItem || value,
+      }));
     } else if (name === "orderDate" || name === "deliveryDate") {
-      setFormData({
-        ...formData,
-        [name]: new Date(value), // Convert date string to Date object
-      });
+      setFormData((prev) => ({
+        ...prev,
+        [name]: new Date(value),
+      }));
     } else {
-      setFormData({
-        ...formData,
-        [name]: value, // Store value as usual
-      });
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
     }
   };
 
-  // Validation function // Validate form before submission
+  // Handle customer change with auto-brand selection
+  const handleCustomerChange = (e) => {
+    const selectedCustomer = customers.find((c) => c._id === e.target.value);
+    const customerBrands = brands.filter(
+      (b) => b.customer === selectedCustomer?._id
+    );
+
+    setFormData((prevState) => ({
+      ...prevState,
+      customer: selectedCustomer || null,
+      brand: customerBrands.length === 1 ? customerBrands[0] : null,
+      style: null,
+      styleNo: "",
+    }));
+  };
+
+  // Handle fabric change with auto-supplier selection
+  const handleFabricChange = (e) => {
+    const selectedFabric = fabrics.find(
+      (fabric) => fabric._id === e.target.value
+    );
+    const selectedSupplier = fabricSuppliers.find(
+      (supplier) => supplier._id === selectedFabric?.supplier?._id
+    );
+
+    setFormData((prevState) => ({
+      ...prevState,
+      fabric: selectedFabric || null,
+      fabricSupplier: selectedSupplier || null,
+    }));
+  };
+
+  // Validation function
   const validateForm = () => {
     let newErrors = {};
     if (!formData.orderNo) newErrors.orderNo = "Order ID is required.";
@@ -233,6 +322,7 @@ const OrderModal = ({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+
     try {
       const payload = {
         ...formData,
@@ -245,13 +335,11 @@ const OrderModal = ({
 
       if (editOrder) {
         const updatedOrder = await updateOrder(editOrder._id, payload);
-        //console.log("updatedOrder: ", updatedOrder);
         updateOrderInList(updatedOrder.populatedOrder);
         toast.success("Order updated successfully");
       } else {
         const newOrder = await createOrder(payload);
         onOrderCreated(newOrder.populatedOrder);
-        //console.log("newOrder ", newOrder);
         toast.success("Order created successfully");
       }
       closeModal();
@@ -261,26 +349,10 @@ const OrderModal = ({
     }
   };
 
-  // 🔹 4. Auto-Fill Brand When Customer is Selected
-  //Issue: Users had to manually select a brand even when there was only one valid option.
-  //Fix: If only one brand matches the customer, it auto-selects.
-  const handleCustomerChange = (e) => {
-    const selectedCustomer = customers.find((c) => c._id === e.target.value);
-    const customerBrands = brands.filter(
-      (b) => b.customer === selectedCustomer?._id
-    );
-
-    setFormData((prevState) => ({
-      ...prevState,
-      customer: selectedCustomer || "",
-      brand: customerBrands.length === 1 ? customerBrands[0] : "", // Auto-select if only 1 brand
-    }));
-  };
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white w-full max-w-3xl p-6 rounded-lg shadow-xl relative animate-fadeIn sm:scale-100">
-        {/* 🔷 Modal Header */}
+      <div className="bg-white w-full max-w-4xl p-6 rounded-lg shadow-xl relative animate-fadeIn sm:scale-100 max-h-[90vh] overflow-hidden">
+        {/* Modal Header */}
         <div className="flex justify-between items-center bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-4 rounded-t-lg">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <ShoppingCart className="w-5 h-5" />
@@ -294,48 +366,31 @@ const OrderModal = ({
           </button>
         </div>
 
-        {/* 🔷 Scrollable Form */}
+        {/* Scrollable Form */}
         <form
           onSubmit={handleSubmit}
-          className="max-h-[70vh] overflow-y-auto space-y-6 p-4"
+          className="max-h-[calc(90vh-140px)] overflow-y-auto space-y-6 p-4"
         >
-          {/* 🔹 General Details */}
+          {/* General Details */}
           <div className="bg-gray-50 p-4 rounded-lg shadow-sm border">
             <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 mb-3">
               <ClipboardList className="w-5 h-5 text-indigo-500" />
               General Details
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-gray-700 font-medium">
-                  Customer
+                <label className="text-sm text-gray-700 font-medium block mb-1">
+                  Customer *
                 </label>
                 <select
                   name="customer"
                   value={formData.customer?._id || ""}
-                  //  onChange={handleChange}
-                  onChange={(e) => {
-                    const selectedCustomer = customers.find(
-                      (customer) => customer._id === e.target.value
-                    );
-                    const selectedBrand = brands.find(
-                      (brand) => brand?.customer === selectedCustomer?._id
-                    );
-                    console.log("Selected Customer: ", selectedCustomer);
-                    console.log("Selected Brand: ", selectedBrand);
-                    setFormData((prevState) => ({
-                      ...prevState,
-                      customer: selectedCustomer || "",
-                      brand: selectedBrand || "", // Update brand dynamically
-                    }));
-                  }}
-                  className={`select-field ${
-                    errors.customer ? "border-red-500" : ""
+                  onChange={handleCustomerChange}
+                  className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    errors.customer ? "border-red-500" : "border-gray-300"
                   }`}
                 >
-                  <option value="" disabled>
-                    Select a Customer
-                  </option>
+                  <option value="">Select a Customer</option>
                   {customers.map((customer) => (
                     <option key={customer._id} value={customer._id}>
                       {customer.name}
@@ -349,19 +404,23 @@ const OrderModal = ({
                   </p>
                 )}
               </div>
+
               <div>
-                <label className="text-sm text-gray-700 font-medium">
+                <label className="text-sm text-gray-700 font-medium block mb-1">
                   Brand
                 </label>
                 <select
                   name="brand"
-                  value={formData.brand?._id}
-                  className="select-field bg-gray-100"
+                  value={formData.brand?._id || ""}
                   onChange={handleChange}
+                  disabled={!formData.customer}
+                  className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    !formData.customer
+                      ? "bg-gray-100 cursor-not-allowed"
+                      : "border-gray-300"
+                  }`}
                 >
-                  <option value="" disabled>
-                    Select a Brand
-                  </option>
+                  <option value="">Select a Brand</option>
                   {filteredBrands.map((brand) => (
                     <option key={brand._id} value={brand._id}>
                       {brand.name}
@@ -369,8 +428,9 @@ const OrderModal = ({
                   ))}
                 </select>
               </div>
+
               <div>
-                <label className="text-sm text-gray-700 font-medium">
+                <label className="text-sm text-gray-700 font-medium block mb-1">
                   Season
                 </label>
                 <input
@@ -378,21 +438,22 @@ const OrderModal = ({
                   name="season"
                   value={formData.season}
                   onChange={handleChange}
-                  className="input-field"
-                  placeholder="E.g., 2 24"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="E.g., 2024"
                 />
               </div>
+
               <div>
-                <label className="text-sm text-gray-700 font-medium">
-                  Order No.
+                <label className="text-sm text-gray-700 font-medium block mb-1">
+                  Order No. *
                 </label>
                 <input
                   type="text"
                   name="orderNo"
                   value={formData.orderNo}
                   onChange={handleChange}
-                  className={`input-field ${
-                    errors.orderNo ? "border-red-500" : ""
+                  className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    errors.orderNo ? "border-red-500" : "border-gray-300"
                   }`}
                   placeholder="E.g., 668021"
                 />
@@ -403,9 +464,10 @@ const OrderModal = ({
                   </p>
                 )}
               </div>
+
               <div>
-                <label className="text-sm text-gray-700 font-medium">
-                  Order Quantity
+                <label className="text-sm text-gray-700 font-medium block mb-1">
+                  Order Quantity *
                 </label>
                 <input
                   type="number"
@@ -414,8 +476,8 @@ const OrderModal = ({
                   onChange={handleChange}
                   min="1"
                   step="1"
-                  className={`input-field ${
-                    errors.orderQty ? "border-red-500" : ""
+                  className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    errors.orderQty ? "border-red-500" : "border-gray-300"
                   }`}
                   placeholder="Enter quantity"
                 />
@@ -426,8 +488,9 @@ const OrderModal = ({
                   </p>
                 )}
               </div>
-              <div className="flex flex-col">
-                <label className="text-sm text-gray-700 font-medium">
+
+              <div>
+                <label className="text-sm text-gray-700 font-medium block mb-1">
                   Order Date
                 </label>
                 <DatePicker
@@ -435,19 +498,25 @@ const OrderModal = ({
                   onChange={(date) =>
                     setFormData({ ...formData, orderDate: date })
                   }
-                  className="input-field"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  dateFormat="yyyy-MM-dd"
                 />
               </div>
-              {/* Select Style Dropdown */}
+
               <div>
-                <label className="text-sm text-gray-700 font-medium">
-                  Select Style
+                <label className="text-sm text-gray-700 font-medium block mb-1">
+                  Style
                 </label>
                 <select
                   name="style"
                   value={formData.style?._id || ""}
                   onChange={handleChange}
-                  className="select-field"
+                  disabled={!formData.brand}
+                  className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    !formData.brand
+                      ? "bg-gray-100 cursor-not-allowed"
+                      : "border-gray-300"
+                  }`}
                 >
                   <option value="">Select a Style</option>
                   {filteredStyles.map((style) => (
@@ -457,21 +526,41 @@ const OrderModal = ({
                   ))}
                 </select>
               </div>
+
               <div>
-                <label className="text-sm text-gray-700 font-medium">
+                <label className="text-sm text-gray-700 font-medium block mb-1">
                   Style No.
                 </label>
-                <input
-                  type="text"
+                <select
                   name="styleNo"
-                  value={formData.styleNo}
+                  value={formData.styleNo || ""}
                   onChange={handleChange}
-                  className="input-field"
-                  placeholder="E.g., 87600"
-                />
+                  disabled={
+                    !formData.style || availableStyleNumbers.length === 0
+                  }
+                  className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    !formData.style || availableStyleNumbers.length === 0
+                      ? "bg-gray-100 cursor-not-allowed"
+                      : "border-gray-300"
+                  }`}
+                >
+                  <option value="">
+                    {!formData.style
+                      ? "Select Style First"
+                      : availableStyleNumbers.length === 0
+                      ? "No Style Numbers Available"
+                      : "Select Style Number"}
+                  </option>
+                  {availableStyleNumbers.map((styleNo, index) => (
+                    <option key={index} value={styleNo}>
+                      {styleNo}
+                    </option>
+                  ))}
+                </select>
               </div>
+
               <div>
-                <label className="text-sm text-gray-700 font-medium">
+                <label className="text-sm text-gray-700 font-medium block mb-1">
                   Key No.
                 </label>
                 <input
@@ -479,12 +568,13 @@ const OrderModal = ({
                   name="keyNo"
                   value={formData.keyNo}
                   onChange={handleChange}
-                  className="input-field"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="E.g., 87600"
                 />
               </div>
+
               <div>
-                <label className="text-sm text-gray-700 font-medium">
+                <label className="text-sm text-gray-700 font-medium block mb-1">
                   Article Number
                 </label>
                 <input
@@ -492,48 +582,46 @@ const OrderModal = ({
                   name="articleNo"
                   value={formData.articleNo}
                   onChange={handleChange}
-                  className="input-field"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="E.g., 80-0070/24"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-700 font-medium block mb-1">
+                  Delivery Date
+                </label>
+                <DatePicker
+                  selected={formData.deliveryDate}
+                  onChange={(date) =>
+                    setFormData({ ...formData, deliveryDate: date })
+                  }
+                  isClearable
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  dateFormat="yyyy-MM-dd"
                 />
               </div>
             </div>
           </div>
 
-          {/* 🔹 Fabric Selection */}
+          {/* Fabric Selection */}
           <div className="bg-gray-50 p-4 rounded-lg shadow-sm border">
             <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 mb-3">
               <ClipboardList className="w-5 h-5 text-indigo-500" />
-              Fabric
+              Fabric Selection
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-gray-700 font-medium">
-                  Select Fabric
+                <label className="text-sm text-gray-700 font-medium block mb-1">
+                  Fabric
                 </label>
                 <select
                   name="fabric"
                   value={formData.fabric?._id || ""}
-                  onChange={(e) => {
-                    const selectedFabric = fabrics.find(
-                      (fabric) => fabric._id === e.target.value
-                    );
-                    const selectedSupplier = fabricSuppliers.find(
-                      (supplier) =>
-                        supplier._id === selectedFabric?.supplier?._id
-                    );
-                    //console.log("Selected Fabric: ", selectedFabric);
-                    //console.log("Selected Supplier: ", selectedSupplier);
-                    setFormData((prevState) => ({
-                      ...prevState,
-                      fabric: selectedFabric || "",
-                      fabricSupplier: selectedSupplier || "", // Update supplier dynamically
-                    }));
-                  }}
-                  className="select-field"
+                  onChange={handleFabricChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="" disabled>
-                    Select a Fabric
-                  </option>
+                  <option value="">Select a Fabric</option>
                   {fabrics.map((fabric) => (
                     <option key={fabric._id} value={fabric._id}>
                       {fabric.name}
@@ -543,16 +631,19 @@ const OrderModal = ({
               </div>
 
               <div>
-                <label className="text-sm text-gray-700 font-medium">
+                <label className="text-sm text-gray-700 font-medium block mb-1">
                   Fabric Supplier
                 </label>
                 <select
                   name="fabricSupplier"
                   value={formData.fabricSupplier?._id || ""}
-                  className="select-field bg-gray-100 cursor-not-allowed"
                   disabled
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 cursor-not-allowed"
                 >
-                  <option value="">Select a Supplier</option>
+                  <option value="">
+                    {formData.fabricSupplier?.name ||
+                      "Auto-selected based on fabric"}
+                  </option>
                   {fabricSuppliers.map((supplier) => (
                     <option key={supplier._id} value={supplier._id}>
                       {supplier.name}
@@ -562,41 +653,23 @@ const OrderModal = ({
               </div>
             </div>
           </div>
-
-          {/* 🔹 Order Details */}
-          {/* <div className="bg-gray-50 p-4 rounded-lg shadow-sm border">
-          <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 mb-3">
-            <Users className="w-5 h-5 text-indigo-500" />
-            Order Details
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            
-            
-            <div className="flex flex-col">
-              <label className="text-sm text-gray-700 font-medium">Delivery Date</label>
-              <DatePicker selected={formData.deliveryDate} onChange={(date) => setFormData({ ...formData, deliveryDate: date })} className="input-field" />
-            </div>
-            
-          </div>
-        </div> */}
-          <div className="grid grid-cols-2 gap-4 mt-4">TIGER</div>
-
-          {/* 🔷 Floating Footer */}
-          <div className="absolute inset-x-0 bottom-0 bg-gray-100 px-6 py-4 flex justify-between items-center rounded-b-lg shadow-md">
-            <button
-              onClick={closeModal}
-              className="bg-gray-400 hover:bg-gray-500 text-white px-6 py-2 rounded-lg"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg"
-            >
-              {editOrder ? "Update Order" : "Save Order"}
-            </button>
-          </div>
         </form>
+
+        {/* Footer */}
+        <div className="flex justify-between items-center bg-gray-100 px-6 py-4 rounded-b-lg">
+          <button
+            onClick={closeModal}
+            className="bg-gray-400 hover:bg-gray-500 text-white px-6 py-2 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition-colors"
+          >
+            {editOrder ? "Update Order" : "Save Order"}
+          </button>
+        </div>
       </div>
     </div>
   );

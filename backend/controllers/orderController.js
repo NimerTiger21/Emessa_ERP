@@ -1,6 +1,11 @@
 const Defect = require("../models/defect/Defect");
 const Order = require("../models/order/Order");
 const Style = require("../models/order/Style");
+const { default: mongoose } = require("mongoose");
+
+function escapeRegex(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 const generateBarcode7 = () => {
   // Generate a short alphanumeric reference (e.g., 4dbdf)
@@ -100,11 +105,19 @@ exports.getAllOrders = async (req, res) => {
     }
 
     if (search) {
+      const safeSearch = escapeRegex(search);
       filter.$or = [
-        { orderNo: { $regex: search, $options: "i" } },
-        { keyNo: { $regex: search, $options: "i" } },
+        { orderNo: { $regex: safeSearch, $options: "i" } },
+        { keyNo: { $regex: safeSearch, $options: "i" } },
       ];
     }
+    // If search is provided, filter by orderNo or keyNo
+    // if (search) {
+    //   filter.$or = [
+    //     { orderNo: { $regex: search, $options: "i" } },
+    //     { keyNo: { $regex: search, $options: "i" } },
+    //   ];
+    // }
 
     const skip = (page - 1) * limit;
     let orders = await Order.find(filter)
@@ -124,6 +137,7 @@ exports.getAllOrders = async (req, res) => {
       .sort({ [sortField]: sortOrder === "asc" ? 1 : -1 })
       .skip(parseInt(skip))
       .limit(parseInt(limit));
+    // .cache(false); // Disable caching for this query
 
     orders = orders.map((order) => {
       const totalDefects = order.defects.reduce(
@@ -131,14 +145,13 @@ exports.getAllOrders = async (req, res) => {
         0
       );
 
-      const defectRate = order.orderQty > 0
-        ? (totalDefects / order.orderQty) * 100
-        : 0;
+      const defectRate =
+        order.orderQty > 0 ? (totalDefects / order.orderQty) * 100 : 0;
 
       return {
         ...order.toObject(),
         totalDefectCount: totalDefects,
-        defectRate: parseFloat(defectRate.toFixed(2))
+        defectRate: parseFloat(defectRate.toFixed(2)),
       };
     });
 
@@ -208,11 +221,49 @@ exports.updateOrder = async (req, res) => {
 
 // ✅ **Delete an Order**
 exports.deleteOrder = async (req, res) => {
+  // try {
+  //   await Order.findByIdAndDelete(req.params.id);
+  //   res.status(200).json({ message: "Order deleted successfully" });
+  // } catch (error) {
+  //   res.status(500).json({ message: "Error deleting order", error });
+  // }
+
   try {
-    await Order.findByIdAndDelete(req.params.id);
-    res.status(200).json({ message: "Order deleted successfully" });
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Check for existing defects
+    const defectsExist = await mongoose
+      .model("Defect")
+      .exists({ orderId: order._id });
+
+    if (defectsExist) {
+      return res.status(400).json({
+        message:
+          "Order contains defects. Delete all defects before deleting this order.",
+        defectsExist: true,
+        orderId: order._id,
+      });
+    }
+
+    // Proceed with deletion if no defects
+    // await order.remove();
+    // await Order.deleteOne({ _id: order._id });
+    await Order.findByIdAndDelete(order._id);
+    res
+      .status(200)
+      .json({
+        message:
+          "Order deleted successfully after checking defects & washRecipe",
+      });
   } catch (error) {
-    res.status(500).json({ message: "Error deleting order", error });
+    res.status(500).json({
+      message: "Error deleting order",
+      error: error.message,
+    });
   }
 };
 
