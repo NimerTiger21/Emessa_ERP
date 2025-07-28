@@ -27,6 +27,9 @@ const WashRecipeTable = ({ recipes = [] }) => {
               Quantity
             </th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              D.Quantity
+            </th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Defect Rate
             </th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -48,6 +51,9 @@ const WashRecipeTable = ({ recipes = [] }) => {
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                 {recipe.orderQty}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                {recipe.defectCount}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm">
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getDefectRateColor(recipe.defectRatio)}`}>

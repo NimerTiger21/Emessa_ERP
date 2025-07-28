@@ -71,31 +71,69 @@ export const deleteDefect = async (deleteId) => {
   }
 };
 
-export const fetchDefects = async ({ 
-  page = 1, 
-  limit = 10, 
+// export const fetchDefects = async ({ 
+//   page = 1, 
+//   limit = 10, 
+//   search = "",
+//   sortField = "detectedDate",
+//   sortOrder = "desc",
+//   severity = "",
+//   defectType = "",
+//   month = ""
+// }) => {
+//   try {
+//     // Build query params
+//     const params = new URLSearchParams({
+//       page,
+//       limit,
+//       search,
+//       sortField,
+//       sortOrder
+//     });
+    
+//     // Add optional filters if present
+//     if (severity) params.append("severity", severity);
+//     if (defectType) params.append("defectType", defectType);
+//     if (month) params.append("month", month);
+    
+//     const response = await axios.get(`${API_URL}?${params.toString()}`);
+//     return response.data;
+//   } catch (error) {
+//     console.error("Error fetching defects:", error);
+//     throw error;
+//   }
+// };
+
+
+export const fetchDefects = async ({
+  page = 1,
+  limit = 10,
   search = "",
   sortField = "detectedDate",
   sortOrder = "desc",
   severity = "",
   defectType = "",
-  month = ""
+  defectName = "",
+  productionLine = "",
+  dateFrom = "",
+  dateTo = ""
 }) => {
   try {
-    // Build query params
     const params = new URLSearchParams({
       page,
       limit,
       search,
       sortField,
-      sortOrder
+      sortOrder,
     });
-    
-    // Add optional filters if present
+
     if (severity) params.append("severity", severity);
     if (defectType) params.append("defectType", defectType);
-    if (month) params.append("month", month);
-    
+    if (defectName) params.append("defectName", defectName);
+    if (productionLine) params.append("productionLine", productionLine);
+    if (dateFrom) params.append("dateFrom", dateFrom);
+    if (dateTo) params.append("dateTo", dateTo);
+
     const response = await axios.get(`${API_URL}?${params.toString()}`);
     return response.data;
   } catch (error) {
@@ -103,6 +141,7 @@ export const fetchDefects = async ({
     throw error;
   }
 };
+
 
 export const getDefectAnalytics = async (defectId) => {
   const res = await axios.get(`${API_URL}/${defectId}/analytics`);

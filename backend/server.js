@@ -69,7 +69,7 @@ app.use("/api/v1/auth", authRouter);
 
 // Basic health check route
 app.get("/", (req, res) => {
-  res.send("Defect Management API is running.");
+  res.send("Defect Management API is running. Developed by Eng. Nimer El Sayed 😎 Mob# +201095674808");
 });
 
 // Start the server

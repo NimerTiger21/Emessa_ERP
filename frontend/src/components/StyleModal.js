@@ -35,11 +35,8 @@ const StyleModal = ({ isOpen, closeModal, editStyle, refreshStyleList }) => {
   // Populate data when editing
   useEffect(() => {
     if (editStyle && customers.length && brands.length) {
-      console.log("editStyle.brand?._id=> ", editStyle.brand?._id);
-      console.log("brands=> ", brands);
       const brandData = brands.find((b) => b._id === editStyle.brand?._id);
       const customerData = customers.find((c) => c._id === brandData?.customer);
-      console.log("brandData=> ", brandData);
 
       setFormData({
         customer: customerData?._id || "",
@@ -60,7 +57,7 @@ const StyleModal = ({ isOpen, closeModal, editStyle, refreshStyleList }) => {
     const filtered = brands.filter((b) => b.customer === formData.customer);
     setFilteredBrands(filtered);
     if (!filtered.some((b) => b._id === formData.brand)) {
-      console.log("Setting brand to empty");
+      // console.log("Setting brand to empty");
       // setFormData(prev => ({ ...prev, brand: "" }));
     }
   }, [formData.customer, brands]);

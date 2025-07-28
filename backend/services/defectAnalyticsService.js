@@ -1,4 +1,5 @@
 // src/services/defectAnalyticsService.js
+const { DateTime } = require("luxon");
 const Defect = require("../models/defect/Defect");
 const Order = require("../models/order/Order");
 const WashRecipe = require("../models/washRecipe/WashRecipe");
@@ -7,6 +8,7 @@ const Style = require("../models/order/Style");
 const FabricComposition = require("../models/order/FabricComposition");
 const CompositionItem = require("../models/order/CompositionItem");
 const DefectType = require("../models/defect/DefectType");
+const DefectName = require("../models/defect/DefectName");
 const mongoose = require("mongoose");
 
 /**
@@ -18,26 +20,64 @@ exports.getDefectAnalytics = async (filters = {}) => {
   try {
     // Build query based on filters
     const query = {};
-    //console.log("Received filters:", filters);
+    // console.log("Received filters:", filters);
+
+    // ! It assumes UTC midnight — so: '2025-07-01' becomes 2025-07-01T00:00:00.000Z
+    // But you’re subtracting 3 hours (for EEST), resulting in: 2025-06-30T21:00:00.000Z
+    // This shifts the date backwards into June 30th in UTC
+
+    const start = new Date(filters.startDate);
+    start.setHours(0, 0, 0, 0); // start of day
+
+    const end = new Date(filters.endDate);
+    end.setHours(23, 59, 59, 999); // end of day
 
     // Apply date range filter if provided
     if (filters.startDate && filters.endDate) {
       query.detectedDate = {
-        $gte: new Date(filters.startDate),
-        $lte: new Date(filters.endDate),
+        $gte: start,
+        $lte: end,
       };
+      // query.detectedDate = {
+      //   // $gte: new Date(filters.startDate),
+      //   // $lte: new Date(filters.endDate),
+      //   $gte: new Date(`${filters.startDate}T00:00:00.000Z`),
+      //   $lte: new Date(`${filters.endDate}T23:59:59.999Z`),
+      // };
     }
+
+    // console.log("Date filter range:", {
+    //   from: start.toISOString(),
+    //   to: end.toISOString(),
+    // });
 
     // Apply other filters
     if (filters.severity) query.severity = filters.severity;
     if (filters.status) query.status = filters.status;
 
     if (filters.defectType) query.defectType = filters.defectType;
+    if (filters.defectName) query.defectName = filters.defectName;
+    if (filters.productionLine) query.productionLine = filters.productionLine;
+
+    // Fetch all defect names and types to create lookup maps
+    const defectNames = await DefectName.find().lean();
+    const defectTypes = await DefectType.find().lean();
+
+    const nameMap = {};
+    defectNames.forEach((name) => {
+      nameMap[name._id.toString()] = name.name;
+    });
+
+    const typeMap = {};
+    defectTypes.forEach((type) => {
+      typeMap[type._id.toString()] = type.name;
+    });
 
     // Get all defects with populated references
     const defects = await Defect.find(query)
       .populate({
         path: "orderId",
+        // select: "orderNo", // 👈 This grabs orderNo directly
         populate: [
           {
             path: "fabric",
@@ -130,26 +170,58 @@ exports.getDefectAnalytics = async (filters = {}) => {
       const count = defect.defectCount || 1;
       severityCounts[defect.severity] =
         (severityCounts[defect.severity] || 0) + count;
-
+      //*************************************************************************************************************** */
       if (defect.productionLine) {
-        // Assuming you have a productionLine field
-        // const productionLine = defect.productionLine._id.toString();
         const productionLine = defect.productionLine.toString();
+
         if (!lineMap[productionLine]) {
           lineMap[productionLine] = {
-            // id: productionLine,
-            // name: defect.productionLine.name || "Unknown Line",
             name: defect.productionLine || "Unknown Line",
-            // lineNumber: defect.productionLine.lineNumber || "N/A",
             count: 0,
             percentage: 0,
             efficiency: defect.productionLine.efficiency || 0,
             totalProduced: 0,
+            processedOrders: new Set(), // Track which orders we've already counted
+            defectTypes: {}, // Track defect types count
+            defectNames: {}, // Track defect names count
           };
         }
+
+        // Add defect count
         lineMap[productionLine].count += defect.defectCount || 1;
-        lineMap[productionLine].totalProduced += defect.orderId.orderQty || 0;
+
+        // Add order quantity only if we haven't processed this order before
+        if (
+          defect.orderId &&
+          !lineMap[productionLine].processedOrders.has(
+            defect.orderId._id.toString()
+          )
+        ) {
+          lineMap[productionLine].totalProduced += defect.orderId.orderQty || 0;
+          lineMap[productionLine].processedOrders.add(
+            defect.orderId._id.toString()
+          );
+        }
+        // Track defect types (assuming defect.defectType is populated)
+        if (defect.defectType) {
+          const typeId = defect.defectType._id
+            ? defect.defectType._id.toString()
+            : defect.defectType.toString();
+          lineMap[productionLine].defectTypes[typeId] =
+            (lineMap[productionLine].defectTypes[typeId] || 0) +
+            (defect.defectCount || 1);
+        }
+        // Track defect names (assuming defect.defectName is populated)
+        if (defect.defectName) {
+          const nameId = defect.defectName._id
+            ? defect.defectName._id.toString()
+            : defect.defectName.toString();
+          lineMap[productionLine].defectNames[nameId] =
+            (lineMap[productionLine].defectNames[nameId] || 0) +
+            (defect.defectCount || 1);
+        }
       }
+      //*************************************************************************************************************** */
 
       // Process fabric data
       if (defect.orderId && defect.orderId.fabric) {
@@ -324,21 +396,81 @@ exports.getDefectAnalytics = async (filters = {}) => {
       }
 
       // Process monthly trend data
-      const defectDate = new Date(defect.detectedDate);
-      const monthYear = `${defectDate.getFullYear()}-${String(
-        defectDate.getMonth() + 1
-      ).padStart(2, "0")}`;
+      // Step 1: Ensure ISO string
+      const iso =
+        defect.detectedDate instanceof Date
+          ? defect.detectedDate.toISOString()
+          : typeof defect.detectedDate === "string"
+          ? new Date(defect.detectedDate).toISOString()
+          : null;
+
+      // Step 2: Luxon DateTime from ISO with correct zone
+      const defectDate = DateTime.fromISO(iso, { zone: "Africa/Cairo" });
+
+      const monthYear = defectDate.toFormat("yyyy-MM");
 
       if (!monthlyData[monthYear]) {
         monthlyData[monthYear] = {
           month: monthYear,
           count: 0,
+          producedQty: 0,
+          processedOrders: new Set(), // prevent duplicate orderQtys
         };
       }
       //monthlyData[monthYear].count += 1;
       monthlyData[monthYear].count += defect.defectCount || 1; // <-- Add the effect value
-    });
 
+      const orderId = defect.orderId?._id?.toString();
+      const orderQty = defect.orderId?.orderQty || 0;
+
+      if (orderId && !monthlyData[monthYear].processedOrders.has(orderId)) {
+        monthlyData[monthYear].producedQty += orderQty;
+        monthlyData[monthYear].processedOrders.add(orderId);
+        // monthlyData[monthYear].processedOrders.add(defect.orderId?.orderNo);
+      }
+
+      // console.log("Processed orders for", monthYear, ":", [...monthlyData[monthYear].processedOrders]);
+    });
+    //***************************************! START For the top defects per production line******************************************* */
+    // After processing all defects, determine top defect name and type for each line
+    Object.values(lineMap).forEach((line) => {
+      // Find top defect type
+      let topTypeId = null;
+      let topTypeCount = 0;
+      Object.entries(line.defectTypes || {}).forEach(([typeId, count]) => {
+        if (count > topTypeCount) {
+          topTypeId = typeId;
+          topTypeCount = count;
+        }
+      });
+      // Find top defect name
+      let topNameId = null;
+      let topNameCount = 0;
+      Object.entries(line.defectNames || {}).forEach(([nameId, count]) => {
+        if (count > topNameCount) {
+          topNameId = nameId;
+          topNameCount = count;
+        }
+      });
+
+      // NEW: Map IDs to names using lookup maps
+      line.topDefectTypeByName = topTypeId ? typeMap[topTypeId] : null;
+      line.topDefectTypeCount = topTypeCount;
+      line.topDefectNameByName = topNameId ? nameMap[topNameId] : null;
+      line.topDefectNameCount = topNameCount;
+
+      // Add top defect info to line object
+      line.topDefectType = topTypeId;
+      line.topDefectTypeCount = topTypeCount;
+      line.topDefectName = topNameId;
+      line.topDefectNameCount = topNameCount;
+
+      // Clean up temporary tracking objects
+      delete line.defectTypes;
+      delete line.defectNames;
+      delete line.processedOrders;
+    });
+    //***************************************! END For the top defects per production line******************************************* */
     // Convert to percentages and sort
     result.summary.defectsByStatus = Object.keys(statusCounts)
       .map((status) => ({
@@ -441,9 +573,30 @@ exports.getDefectAnalytics = async (filters = {}) => {
       .sort((a, b) => b.count - a.count);
 
     // Convert monthly data to sorted array
-    result.trendData = Object.values(monthlyData).sort((a, b) =>
-      a.month.localeCompare(b.month)
-    );
+    // result.trendData = Object.values(monthlyData).sort((a, b) =>
+    //   a.month.localeCompare(b.month)
+    // );
+    // Finalize result
+    // result.trendData = Object.values(monthlyData)
+    //   .map(({ processedOrders, ...entry }) => entry)
+    //   .sort((a, b) => a.month.localeCompare(b.month));
+
+    // Calculate defect percentage and format the data
+    result.trendData = Object.values(monthlyData)
+      .map(({ processedOrders, ...entry }) => ({
+        ...entry,
+        defectPercentage:
+          entry.producedQty > 0
+            ? ((entry.count / entry.producedQty) * 100).toFixed(2)
+            : 0,
+        // monthName: new Date(entry.month + "-01").toLocaleString("default", {
+        //   month: "short",
+        //   year: "numeric",
+        // }),
+        monthName: DateTime.fromFormat(entry.month, "yyyy-MM", { zone: "utc" }).toFormat("LLL yyyy"),
+
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month));
 
     // Get all unique order IDs from defects
     const uniqueOrderIds = new Set(

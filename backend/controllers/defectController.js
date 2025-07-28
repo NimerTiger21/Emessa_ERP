@@ -47,9 +47,15 @@ exports.createDefect = async (req, res) => {
     const savedDefect = await newDefect.save();
 
     // Associate the defect with the order
-    await Order.findByIdAndUpdate(newDefect.orderId, {
-      $push: { defects: savedDefect._id },
-    });
+    // Double-check ID exists before update
+    const orderExists = await Order.exists({ _id: savedDefect.orderId });
+    if (orderExists) {
+      await Order.findByIdAndUpdate(savedDefect.orderId, {
+        $push: { defects: savedDefect._id },
+      });
+    } else {
+      console.warn("Linked order does not exist");
+    }
 
     // Populate the orderId field with orderNo
     const populatedDefect = await Defect.findById(savedDefect._id)
@@ -77,6 +83,10 @@ exports.getDefects = async (req, res) => {
       sortOrder = "desc",
       severity = "",
       defectType = "",
+      defectName,
+      productionLine,
+      dateFrom,
+      dateTo,
       //month = ""
       //detectedDate = ""
     } = req.query;
@@ -115,6 +125,16 @@ exports.getDefects = async (req, res) => {
     // Add filter by defectType if provided
     if (defectType) {
       filters.defectType = defectType;
+    }
+
+    if (defectName) filters.defectName = defectName;
+    if (productionLine) filters.productionLine = productionLine;
+
+    if (dateFrom && dateTo) {
+      filters.detectedDate = {
+        $gte: new Date(dateFrom),
+        $lte: new Date(dateTo),
+      };
     }
 
     // Add filter by month if provided
@@ -172,7 +192,7 @@ exports.getDefectById = async (req, res) => {
       //.populate("orderId", "orderNo") // Populate orderId with only orderNo field;
       .populate({
         path: "orderId",
-        select: "orderNo season",
+        select: "orderNo season styleNo",
         populate: [
           { path: "style", select: "styleNo" },
           { path: "fabric", select: "name color" },
@@ -386,85 +406,167 @@ exports.resolvedDefect = async (req, res) => {
   }
 };
 
+// exports.getDefectAnalytics = async (req, res) => {
+//   try {
+//     const { defectId } = req.params;
+
+//     // Get base defect data
+//     const baseDefect = await Defect.findById(defectId)
+//       .populate("defectName")
+//       .populate("defectPlace");
+//     if (!baseDefect)
+//       return res.status(404).json({ message: "Defect not found" });
+
+//     // Check if defectPlace exists before accessing its _id
+//     const defectPlaceId = baseDefect.defectPlace
+//       ? baseDefect.defectPlace._id
+//       : null;
+
+//     const similarDefects = await Defect.find({
+//       defectName: baseDefect.defectName._id,
+//       //defectPlace: baseDefect.defectPlace._id,
+//       defectPlace: defectPlaceId, // Use the conditional value here
+//     })
+//       .populate("defectType", "name")
+//       .populate("defectPlace", "name")
+//       .populate("orderId", "orderNo style")
+//       .sort({ detectedDate: -1 });
+
+//     // Group for trend chart (monthly)
+//     const trendMap = {};
+//     similarDefects.forEach((defect) => {
+//       const month = new Date(defect.detectedDate).toLocaleString("default", {
+//         month: "short",
+//       });
+//       trendMap[month] = (trendMap[month] || 0) + 1;
+//     });
+
+//     const trendData = Object.entries(trendMap).map(([month, count]) => ({
+//       month,
+//       count,
+//     }));
+
+//     // Group for severity
+//     const severityData = {};
+//     similarDefects.forEach((d) => {
+//       severityData[d.severity] = (severityData[d.severity] || 0) + 1;
+//     });
+
+//     const severityArr = Object.entries(severityData).map(([name, value]) => ({
+//       name,
+//       value,
+//     }));
+
+//     // Group for location/component
+//     const locationData = {};
+//     similarDefects.forEach((d) => {
+//       //const key = d.defectPlace.name || "Unknown";
+//       // Check if d.defectPlace exists before accessing its name
+//       const key = d.defectPlace ? d.defectPlace.name : "Unknown";
+//       locationData[key] = (locationData[key] || 0) + 1;
+//     });
+
+//     const locationArr = Object.entries(locationData).map(
+//       ([location, count]) => ({ location, count })
+//     );
+
+//     // Format similar defects list
+//     const similarFormatted = similarDefects.map((d) => ({
+//       //id: d._id,
+//       id: d.orderId.orderNo,
+//       defectName: baseDefect.defectName.name,
+//       status: d.status || "Open",
+//       severity: d.severity,
+//       component: d.component,
+//       date: new Date(d.detectedDate).toLocaleDateString(),
+//     }));
+
+//     res.json({
+//       trendData,
+//       severityData: severityArr,
+//       locationData: locationArr,
+//       similarDefects: similarFormatted,
+//     });
+//   } catch (err) {
+//     console.error("Error in getDefectAnalytics", err);
+//     res.status(500).json({ message: "Error loading analytics" });
+//   }
+// };
+
+
 exports.getDefectAnalytics = async (req, res) => {
   try {
     const { defectId } = req.params;
 
-    // Get base defect data
     const baseDefect = await Defect.findById(defectId)
       .populate("defectName")
-      .populate("defectPlace");
+      .populate("details.defectPlace")
+      .populate("details.defectProcess");
+
     if (!baseDefect)
       return res.status(404).json({ message: "Defect not found" });
 
-    // Check if defectPlace exists before accessing its _id
-    const defectPlaceId = baseDefect.defectPlace
-      ? baseDefect.defectPlace._id
-      : null;
-
+    // Find similar defects by defectName ONLY
     const similarDefects = await Defect.find({
       defectName: baseDefect.defectName._id,
-      //defectPlace: baseDefect.defectPlace._id,
-      defectPlace: defectPlaceId, // Use the conditional value here
     })
       .populate("defectType", "name")
-      .populate("defectPlace", "name")
+      .populate("details.defectPlace", "name")
+      .populate("details.defectProcess", "name")
       .populate("orderId", "orderNo style")
       .sort({ detectedDate: -1 });
 
-    // Group for trend chart (monthly)
+    // 🔹 Monthly trend
     const trendMap = {};
-    similarDefects.forEach((defect) => {
-      const month = new Date(defect.detectedDate).toLocaleString("default", {
-        month: "short",
-      });
-      trendMap[month] = (trendMap[month] || 0) + 1;
+    similarDefects.forEach((d) => {
+      const month = new Date(d.detectedDate).toLocaleString("default", { month: "short" });
+      // trendMap[month] = (trendMap[month] || 0) + 1;
+      trendMap[month] = (trendMap[month] || 0) + (d.defectCount || 1); // <-- Add the effect value
     });
 
-    const trendData = Object.entries(trendMap).map(([month, count]) => ({
-      month,
-      count,
-    }));
+    const trendData = Object.entries(trendMap).map(([month, count]) => ({ month, count }));
 
-    // Group for severity
+    // 🔸 Severity grouping
     const severityData = {};
     similarDefects.forEach((d) => {
-      severityData[d.severity] = (severityData[d.severity] || 0) + 1;
+      // severityData[d.severity] = (severityData[d.severity] || 0) + 1;
+      severityData[d.severity] = (severityData[d.severity] || 0) + (d.defectCount || 1); // <-- Add the effect value
     });
 
-    const severityArr = Object.entries(severityData).map(([name, value]) => ({
-      name,
-      value,
-    }));
+    const severityArr = Object.entries(severityData).map(([name, value]) => ({ name, value }));
 
-    // Group for location/component
+    // 🔹 Location/component analysis (from details array)
     const locationData = {};
-    similarDefects.forEach((d) => {
-      //const key = d.defectPlace.name || "Unknown";
-      // Check if d.defectPlace exists before accessing its name
-      const key = d.defectPlace ? d.defectPlace.name : "Unknown";
-      locationData[key] = (locationData[key] || 0) + 1;
+    const processData = {};
+
+    similarDefects.forEach((defect) => {
+      defect.details.forEach((detail) => {
+        const place = detail.defectPlace?.name || "Unknown";
+        locationData[place] = (locationData[place] || 0) + detail.count;
+
+        const process = detail.defectProcess?.name || "Unknown";
+        processData[process] = (processData[process] || 0) + detail.count;
+      });
     });
 
-    const locationArr = Object.entries(locationData).map(
-      ([location, count]) => ({ location, count })
-    );
+    const locationArr = Object.entries(locationData).map(([location, count]) => ({ location, count }));
+    const processArr = Object.entries(processData).map(([process, count]) => ({ process, count }));
 
-    // Format similar defects list
+    // 🔸 Format defect list
     const similarFormatted = similarDefects.map((d) => ({
-      //id: d._id,
-      id: d.orderId.orderNo,
+      id: d.orderId?.orderNo || "Unknown",
       defectName: baseDefect.defectName.name,
       status: d.status || "Open",
       severity: d.severity,
-      component: d.component,
       date: new Date(d.detectedDate).toLocaleDateString(),
     }));
 
+    // 🧾 Final response
     res.json({
       trendData,
       severityData: severityArr,
       locationData: locationArr,
+      processData: processArr,
       similarDefects: similarFormatted,
     });
   } catch (err) {

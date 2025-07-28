@@ -50,10 +50,9 @@ const FabricModal = ({ closeModal, editFabric, refreshFabricList }) => {
   }, [editFabric]);
 
   // Calculate total composition percentage
-  const totalPercentage = formData.compositions.reduce(
-    (sum, comp) => sum + parseInt(comp.value),
-    0
-  );
+  const totalPercentage = formData.compositions
+    .reduce((sum, comp) => sum + parseFloat(comp.value), 0)
+    .toFixed(1);
 
   // Add composition with limit check
   const addComposition = () => {
@@ -71,7 +70,7 @@ const FabricModal = ({ closeModal, editFabric, refreshFabricList }) => {
       return toast.error("This composition is already added.");
     }
 
-    const newTotal = totalPercentage + parseInt(percentage);
+    const newTotal = totalPercentage + parseFloat(percentage);
 
     if (newTotal > 100) {
       setWarning("Total composition cannot exceed 100%.");
@@ -108,12 +107,41 @@ const FabricModal = ({ closeModal, editFabric, refreshFabricList }) => {
     setFormData({ ...formData, compositions: updatedComps });
   };
 
+  const validateForm = () => {
+    const errors = [];
+
+    if (!formData.name?.trim()) errors.push("Fabric name is required.");
+    // if (!formData.code?.trim()) errors.push("Fabric code is required.");
+    // if (!formData.color?.trim()) errors.push("Color is required.");
+    if (!formData.supplier) errors.push("Please select a supplier.");
+
+    if (formData.compositions.length === 0) {
+      errors.push("At least one composition is required.");
+    }
+
+    if (parseFloat(totalPercentage) !== 100) {
+      errors.push("Total composition must be exactly 100%.");
+    }
+
+    return errors;
+  };
+
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (totalPercentage !== 100)
-      return toast.error("Total composition must be exactly 100%.");
+    const errors = validateForm();
+    if (errors.length > 0) {
+      errors.forEach((err) => toast.error(err));
+      return;
+    }
+
+    // if (parseFloat(totalPercentage) !== 100)
+    //   return toast.error("Total composition must be exactly 100%.");
+
+    // if (!formData.supplier || formData.supplier === "") {
+    //   return toast.error("Supplier is required. Please select one.");
+    // }
 
     try {
       let updatedFabric;
@@ -198,7 +226,11 @@ const FabricModal = ({ closeModal, editFabric, refreshFabricList }) => {
                 onChange={(e) =>
                   setFormData({ ...formData, supplier: e.target.value })
                 }
-                className="select-field"
+                // className="select-field"
+                // className="w-full p-2 mb-4 border border-gray-300 rounded"
+                className={`select-field ${
+                  !formData.supplier ? "border-red-500" : ""
+                }`}
                 required
               >
                 <option value="" disabled>
@@ -297,9 +329,10 @@ const FabricModal = ({ closeModal, editFabric, refreshFabricList }) => {
             <Button
               type="submit"
               className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded flex items-center gap-2"
-              disabled={totalPercentage !== 100}
+              disabled={parseFloat(totalPercentage) !== 100}
               onClick={handleSubmit}
             >
+              {console.log("Edit Fabric:", parseFloat(totalPercentage))}
               <FiSave /> {editFabric ? "Update Fabric" : "Save Fabric"}
             </Button>
             <Button

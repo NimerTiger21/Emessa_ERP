@@ -16,6 +16,17 @@ import { SiStylelint } from "react-icons/si";
 import { GiLouvrePyramid } from "react-icons/gi";
 import avatar from "./avatar.jpg";
 
+export const PRODUCTION_LINES = [
+  "Line 1",
+  "Line 2",
+  "Line 3",
+  "Line 4",
+  "Line 5",
+  "Line 6",
+  "Line 7",
+  "Sample Room",
+];
+
 export const links = [
   {
     title: "Dashboard",

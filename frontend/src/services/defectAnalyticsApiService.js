@@ -18,6 +18,10 @@ export const getDefectAnalytics = async (filters = {}) => {
     if (filters.status) queryParams.append("status", filters.status);
     if (filters.defectType)
       queryParams.append("defectType", filters.defectType);
+    if (filters.defectName) queryParams.append("defectName", filters.defectName); // ✅ Add this
+    if (filters.productionLine) queryParams.append("productionLine", filters.productionLine); // ✅ And this
+
+    // console.log("Defect analytics query params:", queryParams.toString());
 
     const response = await axios.get(
       `${API_URL}/api/analytics/analytics?${queryParams}`

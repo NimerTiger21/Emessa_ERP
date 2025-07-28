@@ -64,7 +64,7 @@ const UserProfile = () => {
       console.log("User logged out");
       navigate("/");
       //setIsClicked(false); // Close the profile menu
-      setIsClicked(prev => ({ ...prev, userProfile: false }))
+      setIsClicked((prev) => ({ ...prev, userProfile: false }));
     } catch (error) {
       console.error("Logout failed:", error);
     }
@@ -90,7 +90,12 @@ const UserProfile = () => {
         <img
           className="rounded-full h-24 w-24 border-2"
           //src={user?.avatar || avatar}
-          src={`${process.env.REACT_APP_API_URL}/${user?.avatar || avatar}`}
+          // src={`${process.env.REACT_APP_API_URL}/${user?.avatar || avatar}`}
+          src={
+            user?.avatar?.startsWith("http")
+              ? user.avatar
+              : `${process.env.REACT_APP_API_URL}/${user?.avatar || avatar}`
+          }
           alt="user-profile"
           style={{ borderColor: currentColor }}
         />

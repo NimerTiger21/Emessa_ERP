@@ -122,8 +122,10 @@ const StyleList = () => {
   const closeConfirm = () => setIsConfirmOpen(false);
 
   // Component for rendering style numbers with modern badges
-  const StyleNumberBadges = ({ styleNumbers, maxVisible = 3 }) => {
-    if (!styleNumbers || styleNumbers.length === 0) {
+  const StyleNumberBadges = ({ styleNumbers =[], maxVisible = 3 }) => {
+    const isValidArray = Array.isArray(styleNumbers) && styleNumbers.length > 0;
+    // if (!styleNumbers || styleNumbers.length === 0) {
+    if (!isValidArray) {
       return <span className="text-gray-400 italic">No style numbers</span>;
     }
 
@@ -132,9 +134,10 @@ const StyleList = () => {
 
     return (
       <div className="flex flex-wrap gap-1">
-        {visibleNumbers.map((styleNo, index) => (
+        {visibleNumbers?.map((styleNo, index) => (
           <span
-            key={index}
+            // key={index}
+            key={`styleNo-${index}`}
             className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border border-purple-200 hover:from-purple-200 hover:to-pink-200 transition-all duration-200"
           >
             <FiTag className="w-3 h-3 mr-1" />

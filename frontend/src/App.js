@@ -1,4 +1,3 @@
-import React from "react";
 import { Navigate, Routes, Route } from "react-router-dom";
 import { FiSettings } from "react-icons/fi";
 import Dashboard from "./pages/Dashboard";
@@ -8,7 +7,7 @@ import DefectList from "./pages/DefectList";
 import "./App.css";
 import { TooltipComponent } from "@syncfusion/ej2-react-popups";
 import { useStateContext } from "./contexts/ContextProvider";
-import { Navbar, Sidebar, Footer, ThemeSettings } from "./components";
+import { Navbar, Sidebar, ThemeSettings } from "./components";
 import { ToastContainer, Zoom } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import OrderList from "./pages/OrderList";
@@ -18,7 +17,7 @@ import WashRecipeDetails from "./pages/WashRecipeDetails";
 import WashRecipeList from "./pages/WashRecipeList";
 import FabricList from "./pages/FabricList";
 import StyleList from "./pages/StyleList";
-import DefectComparison from "./components/DefectComparison";
+import DefectComparison from "./components/defect/DefectComparison";
 import WashRecipeDashboard from "./pages/WashRecipeDashboard";
 
 import { useAuth } from "./contexts/AuthContext"; // ⬅️ ADD THIS
@@ -26,6 +25,7 @@ import PrivateRoute from "./components/PrivateRoute";
 import Unauthorized from "./pages/Unauthorized"; // ⬅️ Add this import
 import WashRecipeEdit from "./components/washRecipes/WashRecipeEdit";
 import WashRecipeClone from "./components/washRecipes/WashRecipeClone";
+import GarmentMapMockup from "./pages/GarmentMap";
 
 function App() {
   const {
@@ -137,10 +137,14 @@ function App() {
                 />
                 <Route path="/fabriclist" element={<FabricList />} />
                 <Route path="/stylelist" element={<StyleList />} />
+                <Route path="/pyramid" element={<GarmentMapMockup />} />
 
                 {/* Optional catch route */}
                 <Route path="/unauthorized" element={<Unauthorized />} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                <Route
+                  path="*"
+                  element={<Navigate to="/dashboard" replace />}
+                />
               </Routes>
             </div>
           </div>

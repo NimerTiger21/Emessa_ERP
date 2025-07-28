@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   PieChart,
@@ -22,8 +20,6 @@ import {
   AlertCircle,
   Droplets,
   FlaskRound,
-  Clock,
-  Thermometer,
   FlaskConical,
 } from "lucide-react";
 import { getWashRecipeDefectAnalytics } from "../services/defectAnalyticsApiService";

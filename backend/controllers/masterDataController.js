@@ -233,7 +233,6 @@ exports.getBrands = async (req, res) => {
 exports.createStyle = async (req, res) => {
   try {
     const { customer, brand, styleName, styleNo } = req.body;
-    console.log("Creating style:", { customer, brand, styleName, styleNo });
 
     // Filter out empty strings from styleNo array
     const filteredStyleNo = Array.isArray(styleNo)
@@ -268,7 +267,7 @@ exports.createStyle = async (req, res) => {
 
 exports.updateStyle = async (req, res) => {
   const { customer, brand, styleName, styleNo } = req.body;
-  console.log("Updating style:", { customer, brand, styleName, styleNo });
+  // console.log("Updating style:", { customer, brand, styleName, styleNo });
   // Filter out empty strings from styleNo array
   const filteredStyleNo = Array.isArray(styleNo)
     ? styleNo.filter((num) => num && num.trim() !== "")

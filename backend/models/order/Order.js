@@ -46,6 +46,8 @@ module.exports = mongoose.model("Order", OrderSchema);
 });
  */
 
+// OrderSchema.pre('deleteOne', { document: true }, async function(next) {
+// OrderSchema.pre('findOneAndDelete', async function(next) {
 OrderSchema.pre("remove", async function(next) {
   try {
     // Check if order has defects

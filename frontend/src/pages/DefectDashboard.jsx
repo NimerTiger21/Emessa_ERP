@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { PRODUCTION_LINES } from "../data/dummy";
 import {
   LineChart,
   Line,
@@ -33,7 +34,11 @@ import {
   GitCompare,
 } from "lucide-react";
 import { getDefectAnalytics } from "../services/defectAnalyticsApiService";
-import DefectComparison from "../components/DefectComparison";
+import DefectComparison from "../components/defect/DefectComparison";
+import {
+  fetchDefectNames,
+  fetchDefectTypes,
+} from "../services/masterDataService";
 
 /* -------------------------------------------------------------------------- */
 /*                                CONSTANTS                                   */
@@ -67,6 +72,9 @@ const DefectDashboard = () => {
   const [selectedStyle, setSelectedStyle] = useState(null);
   const [selectedLine, setSelectedLine] = useState(null);
 
+  const [allDefectNames, setAllDefectNames] = useState([]);
+  // const [allDefectTypes, setAllDefectTypes] = useState([]);
+
   const truncate = (str, n = 12) =>
     str.length > n ? str.slice(0, n) + "…" : str;
 
@@ -78,15 +86,19 @@ const DefectDashboard = () => {
   };
 
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().setMonth(new Date().getMonth() - 3))
-      .toISOString()
-      .split("T")[0],
+    // startDate: new Date(new Date().setMonth(new Date().getMonth() - 3))
+    //   .toISOString()
+    //   .split("T")[0],
+    startDate: "2025-04-01",
     endDate: new Date().toISOString().split("T")[0],
   });
   const [filters, setFilters] = useState({
     severity: "",
     status: "",
     defectType: "", // <-- Add this line
+    productionLine: "", // <-- Add this line
+    defectName: "", // <-- Add this line
+    // Add more filters as needed
   });
   const [filterVisible, setFilterVisible] = useState(false);
 
@@ -94,12 +106,65 @@ const DefectDashboard = () => {
     fetchAnalytics();
   }, []);
 
-  const handleStyleClick = (data) => {
-    // Find the selected style data
-    const styleData = analytics.byStyle.find(
-      (style) => style.name === data.name
+  const fetchAnalytics = async () => {
+    setLoading(true);
+    try {
+      const analyticsData = await getDefectAnalytics({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        ...filters,
+      });
+      console.log("Analytics filters:", filters);
+      setAnalytics(analyticsData);
+      // Check if analyticsData is an object and has the expected structure for debugging
+      console.log("Analytics Data:", analyticsData);
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching analytics:", err);
+      setError("Failed to load analytics data. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch all defect names when component mounts
+  useEffect(() => {
+    const fetchAllDefectNames = async () => {
+      try {
+        // const response = await axios.get('/api/defect-names');
+        const response = await fetchDefectNames();
+        // const [typeRes, nameRes] = await Promise.all([
+        //   fetchDefectTypes(),
+        //   fetchDefectNames(),
+        // ]);
+        // setAllDefectTypes(typeRes);
+        // setAllDefectNames(nameRes);
+        setAllDefectNames(response);
+        // console.log("Fetched all defect names:", nameRes);
+        // console.log("Fetched all defect types:", typeRes);
+      } catch (error) {
+        console.error("Error fetching defect names:", error);
+      }
+    };
+    fetchAllDefectNames();
+  }, []);
+
+  // Filter function
+  const getDefectNamesByType = (typeId) => {
+    // console.log("Filtering defect names by type:", typeId);
+    // If allDefectNames is not set or is empty, return an empty array
+    // Check if allDefectNames is available and has items
+    if (!allDefectNames || allDefectNames.length === 0) {
+      return [];
+    }
+    // Filter allDefectNames based on the typeId
+    if (!typeId) {
+      return allDefectNames; // Return all names if no typeId is provided
+    }
+    // Assuming allDefectNames is an array of objects with a 'type' property
+    return allDefectNames.filter(
+      (name) => name.type?._id.toString() === typeId.toString()
     );
-    setSelectedStyle(styleData);
   };
 
   const handleLineClick = (data) => {
@@ -111,26 +176,41 @@ const DefectDashboard = () => {
     }
   };
 
-  const fetchAnalytics = async () => {
-    setLoading(true);
-    try {
-      const analyticsData = await getDefectAnalytics({
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        ...filters,
-      });
-      setAnalytics(analyticsData);
-      console.log(analyticsData);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching analytics:", err);
-      setError("Failed to load analytics data. Please try again later.");
-    } finally {
-      setLoading(false);
-    }
+  const handleStyleClick = (data) => {
+    // Find the selected style data
+    const styleData = analytics.byStyle.find(
+      (style) => style.name === data.name
+    );
+    setSelectedStyle(styleData);
+  };
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !label) return null;
+
+    const data = trendData.find((d) => d.month === label);
+    if (!data) return null;
+
+    return (
+      <div className="bg-white rounded-lg shadow-lg border p-4">
+        <div className="font-semibold text-gray-800 mb-1">{data.monthName}</div>
+        <div className="text-sm">
+          <span className="text-red-600 font-medium">Defects:</span>{" "}
+          {data.count}
+        </div>
+        <div className="text-sm">
+          <span className="text-green-600 font-medium">Produced:</span>{" "}
+          {data.producedQty.toLocaleString()}
+        </div>
+        <div className="text-sm">
+          <span className="text-yellow-600 font-medium">Defect Rate:</span>{" "}
+          {data.defectPercentage}%
+        </div>
+      </div>
+    );
   };
 
   const handleFilterChange = (e) => {
+    // Handle filter changes
     const { name, value } = e.target;
     setFilters((prev) => ({
       ...prev,
@@ -156,6 +236,8 @@ const DefectDashboard = () => {
       severity: "",
       status: "",
       defectType: "",
+      productionLine: "",
+      defectName: "",
     });
     setDateRange({
       startDate: new Date(new Date().setMonth(new Date().getMonth() - 3))
@@ -212,7 +294,9 @@ const DefectDashboard = () => {
     percentage: parseFloat(item.percentage), // Convert string to number
   }));
   const defectTypeData = analytics?.byDefectType || [];
-  const defectPlaceData = analytics?.byDefectPlace || [];
+  // const defectPlaceData = analytics?.byDefectPlace || [];
+  const defectPlaceData = analytics?.byDefectDetailPlace || [];
+  const defectProcesseData = analytics?.byDefectDetailProcess || [];
   const trendData = analytics?.trendData || [];
   const severityData = analytics?.summary?.defectsBySeverity || [];
   // Convert percentage strings to numbers
@@ -221,10 +305,19 @@ const DefectDashboard = () => {
     percentage: parseFloat(item.percentage), // Convert string to number
   }));
 
+  const getDefectTypeName = (id) =>
+    analytics?.byDefectType.find((t) => t.id === id)?.name || "Unknown";
+  // console.log("Defect Type ID:", id); // Defect Type ID: Embroidery Defects  | Defect Type ID: 6801fa8c7bc4fa70bef37262
+  // allDefectTypes.find((t) => t._id === id)?.name || "Unknown"; // analytics?.byDefectType
+
+  const getDefectName = (id) =>
+    allDefectNames.find((n) => n._id === id)?.name || "Unknown";
+
   return (
     <div className="bg-gray-50 min-h-screen p-4 lg:p-6">
       {/* Dashboard Header */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6">
+      <div className="flex flex-col gap-4 lg:gap-6 mb-6">
+        {/* Title + Description */}
         <div>
           <h1 className="text-2xl font-bold text-gray-800">
             Quality Defect Analytics
@@ -234,66 +327,95 @@ const DefectDashboard = () => {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row mt-4 lg:mt-0 space-y-2 sm:space-y-0 sm:space-x-2 w-full lg:w-auto">
-          {/* View Toggle Buttons */}
-
-          <div className="flex bg-gray-100 rounded-md p-1">
+        {/* Active Filters */}
+        {(filters.defectType ||
+          filters.defectName ||
+          filters.productionLine ||
+          filters.severity ||
+          filters.status) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {filters.defectType && (
+              <span className="bg-red-100 text-red-800 text-sm px-3 py-1 rounded-full border border-red-200">
+                Defect Type: {getDefectTypeName(filters.defectType)}
+                {/* Defect Type: {filters.defectType ? getDefectTypeName(filters.defectType) : "All Types"} */}
+                {/* Defect Type: {filters?.defectType} */}
+              </span>
+            )}
+            {filters.defectName && (
+              <span className="bg-yellow-100 text-yellow-800 text-sm px-3 py-1 rounded-full border border-yellow-200">
+                Defect Name: {getDefectName(filters.defectName)}
+              </span>
+            )}
+            {filters.productionLine && (
+              <span className="bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full border border-green-200">
+                Line: {filters.productionLine}
+              </span>
+            )}
+            {filters.severity && (
+              <span className="bg-yellow-100 text-yellow-800 text-sm px-3 py-1 rounded-full border border-yellow-200">
+                Severity: {filters.severity}
+              </span>
+            )}
+            {filters.status && (
+              <span className="bg-red-100 text-red-800 text-sm px-3 py-1 rounded-full border border-red-200">
+                Status: {filters.status}
+              </span>
+            )}
             <button
-              className={`px-3 py-2 text-sm rounded-md flex items-center ${
-                activeView === "overview"
-                  ? "bg-white shadow-sm text-indigo-600"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-              onClick={() => setActiveView("overview")}
+              onClick={handleResetFilters}
+              className="ml-2 text-sm text-gray-500 hover:text-gray-700 underline"
             >
-              <BarChart2 className="h-4 w-4 mr-1" />
-              Overview
-            </button>
-
-            <button
-              className={`px-3 py-2 text-sm rounded-md flex items-center ${
-                activeView === "composition"
-                  ? "bg-white shadow-sm text-indigo-600"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-              onClick={() => setActiveView("composition")}
-            >
-              <Layers className="h-4 w-4 mr-1" />
-              Composition
-            </button>
-
-            <button
-              className={`px-3 py-2 text-sm rounded-md flex items-center ${
-                activeView === "comparison"
-                  ? "bg-white shadow-sm text-indigo-600"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-              onClick={() => setActiveView("comparison")}
-            >
-              <GitCompare className="h-4 w-4 mr-1" />
-              Comparison
+              Clear Filters
             </button>
           </div>
-          <button
-            className="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center shadow-sm"
-            onClick={() => setFilterVisible(!filterVisible)}
-          >
-            <Filter className="h-4 w-4 mr-2" />
-            Filters
-          </button>
+        )}
 
-          <button
-            className="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center shadow-sm"
-            onClick={fetchAnalytics}
-          >
-            <RefreshCcw className="h-4 w-4 mr-2" />
-            Refresh
-          </button>
+        {/* Action Buttons + View Toggle */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div className="flex bg-gray-100 rounded-md p-1">
+            {/* View Toggle Buttons */}
+            {["overview", "composition", "comparison"].map((view) => (
+              <button
+                key={view}
+                className={`px-3 py-2 text-sm rounded-md flex items-center ${
+                  activeView === view
+                    ? "bg-white shadow-sm text-indigo-600"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+                onClick={() => setActiveView(view)}
+              >
+                {view === "overview" && <BarChart2 className="h-4 w-4 mr-1" />}
+                {view === "composition" && <Layers className="h-4 w-4 mr-1" />}
+                {view === "comparison" && (
+                  <GitCompare className="h-4 w-4 mr-1" />
+                )}
+                {view.charAt(0).toUpperCase() + view.slice(1)}
+              </button>
+            ))}
+          </div>
 
-          <button className="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center shadow-sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center shadow-sm"
+              onClick={() => setFilterVisible(!filterVisible)}
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Filters
+            </button>
+
+            <button
+              className="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center shadow-sm"
+              onClick={fetchAnalytics}
+            >
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              Refresh
+            </button>
+
+            <button className="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center shadow-sm">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </button>
+          </div>
         </div>
       </div>
 
@@ -337,6 +459,32 @@ const DefectDashboard = () => {
               />
             </div>
 
+            {/* Add these new filter options */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Production Line
+              </label>
+              <select
+                name="productionLine"
+                value={filters.productionLine}
+                onChange={handleFilterChange}
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              >
+                {/* <option value="">All Lines</option>
+                {analytics?.byLine?.map((line) => (
+                  <option key={line.name} value={line.name}>
+                    {line.name}
+                  </option> */}
+
+                <option value="">All Lines</option>
+                {PRODUCTION_LINES?.map((line) => (
+                  <option key={line} value={line}>
+                    {line}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Defect Type
@@ -344,16 +492,47 @@ const DefectDashboard = () => {
               <select
                 name="defectType"
                 value={filters.defectType}
-                onChange={handleFilterChange}
+                onChange={(e) => {
+                  handleFilterChange(e);
+                  // When defect type changes, reset defect name filter
+                  setFilters((prev) => ({
+                    ...prev,
+                    defectType: e.target.value,
+                    defectName: "",
+                  }));
+                }}
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               >
                 <option value="">All Types</option>
-                {analytics?.byDefectType.map((type) => (
-                  // <option key={type._id} value={type._id}>
+                {/* {allDefectTypes?.map((type) => ( */}
+                {analytics?.byDefectType?.map((type) => (
                   <option key={type.id} value={type.id}>
                     {type.name}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Defect Name
+              </label>
+              <select
+                name="defectName"
+                value={filters.defectName}
+                onChange={handleFilterChange}
+                disabled={!filters.defectType}
+                className={`block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ${
+                  !filters.defectType ? "bg-gray-100 cursor-not-allowed" : ""
+                }`}
+              >
+                <option value="">All Names</option>
+                {filters.defectType &&
+                  getDefectNamesByType(filters.defectType)?.map((name) => (
+                    <option key={name._id} value={name._id}>
+                      {name.name}
+                    </option>
+                  ))}
               </select>
             </div>
 
@@ -402,80 +581,152 @@ const DefectDashboard = () => {
           </div>
         </div>
       )}
+
       {/* Main Content */}
       {activeView === "overview" && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Total Defects</p>
-                  <h3 className="text-2xl font-bold text-gray-800 mt-1">
-                    {analytics?.summary?.totalDefects || 0}
-                  </h3>
-                  {analytics?.summary?.defectRatio && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Ratio: {analytics.summary.defectRatio}% of{" "}
-                      {analytics.summary.totalProducedItems} produced items
-                    </p>
-                  )}
-                </div>
-                <div className="bg-indigo-50 p-3 rounded-full">
-                  <AlertCircle className="h-6 w-6 text-indigo-600" />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* Total Defects Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200">
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                        Total Defects
+                      </h4>
+                    </div>
+                    <h3 className="text-3xl font-bold text-gray-900 mb-2">
+                      {analytics?.summary?.totalDefects?.toLocaleString() || 0}
+                    </h3>
+                    {analytics?.summary?.defectRatio && (
+                      <div className="bg-gray-50 px-3 py-1 rounded-full inline-block">
+                        <p className="text-xs font-medium text-gray-600">
+                          Ratio: {analytics.summary.defectRatio}% of{" "}
+                          {analytics.summary.totalProducedItems?.toLocaleString()}{" "}
+                          produced items
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-indigo-100 p-3 rounded-xl">
+                    <AlertCircle className="h-7 w-7 text-indigo-600" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Top Defect Type</p>
-                  <h3 className="text-2xl font-bold text-gray-800 mt-1">
-                    {defectTypeData[0]?.name || "N/A"}
-                  </h3>
-                  <p className="text-sm text-green-600 mt-1">
-                    {defectTypeData[0]?.percentage || 0}% of total
-                  </p>
-                </div>
-                <div className="bg-green-50 p-3 rounded-full">
-                  <Layers className="h-6 w-6 text-green-600" />
+            {/* Top Defect Type Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200">
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                        Top Defect Type
+                      </h4>
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                      {defectTypeData[0]?.name || "N/A"}
+                    </h3>
+                    <div className="flex items-center space-x-3">
+                      <div className="bg-emerald-50 px-3 py-1 rounded-full">
+                        <span className="text-sm font-semibold text-emerald-700">
+                          {defectTypeData[0]?.percentage || 0}%
+                        </span>
+                      </div>
+                      <div className="bg-gray-50 px-3 py-1 rounded-full">
+                        <span className="text-sm font-medium text-gray-600">
+                          {defectTypeData[0]?.count || 0} cases
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-emerald-100 p-3 rounded-xl">
+                    <Layers className="h-7 w-7 text-emerald-600" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Top Defect Location</p>
-                  <h3 className="text-2xl font-bold text-gray-800 mt-1">
-                    {defectPlaceData[0]?.name || "N/A"}
-                  </h3>
-                  <p className="text-sm text-amber-600 mt-1">
-                    {defectPlaceData[0]?.percentage || 0}% of total
-                  </p>
-                </div>
-                <div className="bg-amber-50 p-3 rounded-full">
-                  <PieChartIcon className="h-6 w-6 text-amber-600" />
+            {/* Top Defect Location Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200">
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                        Top Defect Location
+                      </h4>
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                      {defectPlaceData[0]?.name || "N/A"}
+                    </h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-amber-50 px-3 py-1 rounded-full">
+                          <span className="text-sm font-semibold text-amber-700">
+                            {defectPlaceData[0]?.percentage || 0}%
+                          </span>
+                        </div>
+                        <div className="bg-gray-50 px-3 py-1 rounded-full">
+                          <span className="text-sm font-medium text-gray-600">
+                            {defectPlaceData[0]?.count || 0} defects
+                          </span>
+                        </div>
+                      </div>
+                      {defectProcesseData[0]?.name && (
+                        <div className="bg-orange-50 px-3 py-1 rounded-full inline-block">
+                          <p className="text-xs font-medium text-orange-700">
+                            Top Process: {defectProcesseData[0].name}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-amber-100 p-3 rounded-xl">
+                    <PieChart className="h-7 w-7 text-amber-600" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">High Severity Defects</p>
-                  <h3 className="text-2xl font-bold text-gray-800 mt-1">
-                    {severityData.find((s) => s.name === "High")?.count || 0}
-                  </h3>
-                  <p className="text-sm text-red-600 mt-1">
-                    {severityData.find((s) => s.name === "High")?.percentage ||
-                      0}
-                    % of total
-                  </p>
-                </div>
-                <div className="bg-red-50 p-3 rounded-full">
-                  <AlertCircle className="h-6 w-6 text-red-600" />
+            {/* High Severity Defects Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200">
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                        High Severity
+                      </h4>
+                      <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+                    </div>
+                    <h3 className="text-3xl font-bold text-gray-900 mb-2">
+                      {severityData
+                        .find((s) => s.name === "High")
+                        ?.count?.toLocaleString() || 0}
+                    </h3>
+                    <div className="flex items-center space-x-3">
+                      <div className="bg-red-50 px-3 py-1 rounded-full">
+                        <span className="text-sm font-semibold text-red-700">
+                          {severityData.find((s) => s.name === "High")
+                            ?.percentage || 0}
+                          %
+                        </span>
+                      </div>
+                      <div className="bg-gray-50 px-3 py-1 rounded-full">
+                        <span className="text-sm font-medium text-gray-600">
+                          Critical issues
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-red-100 p-3 rounded-xl">
+                    <TrendingUp className="h-7 w-7 text-red-600" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -576,6 +827,7 @@ const DefectDashboard = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {/* Existing cards (unchanged) */}
                     <div className="bg-red-50 p-4 rounded-lg border border-red-200">
                       <h4 className="text-sm font-medium text-red-700">
                         Total Defects
@@ -584,6 +836,7 @@ const DefectDashboard = () => {
                         {selectedLine.count}
                       </p>
                     </div>
+
                     <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                       <h4 className="text-sm font-medium text-blue-700">
                         Items Produced
@@ -592,6 +845,7 @@ const DefectDashboard = () => {
                         {selectedLine.totalProduced.toLocaleString()}
                       </p>
                     </div>
+
                     <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                       <h4 className="text-sm font-medium text-green-700">
                         Line Efficiency
@@ -600,6 +854,7 @@ const DefectDashboard = () => {
                         {selectedLine.efficiency}%
                       </p>
                     </div>
+
                     <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
                       <h4 className="text-sm font-medium text-orange-700">
                         Defect Rate
@@ -611,6 +866,87 @@ const DefectDashboard = () => {
                         ).toFixed(2)}
                         %
                       </p>
+                    </div>
+
+                    {/* Enhanced Top Defect Card - now spans full width */}
+                    <div className="md:col-span-4 bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                      <h4 className="text-sm font-medium text-yellow-700 mb-2">
+                        Top Defect Analysis
+                      </h4>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Top Defect Type */}
+                        <div className="bg-white p-3 rounded-lg border border-yellow-100">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="text-xs text-yellow-600">
+                                Most Common Type
+                              </p>
+                              <p className="text-xl font-bold text-yellow-900">
+                                {selectedLine?.topDefectTypeByName || "—"}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">Count</p>
+                              <p className="text-xl font-bold">
+                                {selectedLine?.topDefectTypeCount || 0}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            <p className="text-xs text-gray-500">
+                              {selectedLine.count > 0 ? (
+                                <>
+                                  {(
+                                    (selectedLine.topDefectTypeCount /
+                                      selectedLine.count) *
+                                    100
+                                  ).toFixed(1)}
+                                  % of all defects
+                                </>
+                              ) : (
+                                "0% of all defects"
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Top Defect Name */}
+                        <div className="bg-white p-3 rounded-lg border border-yellow-100">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="text-xs text-yellow-600">
+                                Most Common Defect
+                              </p>
+                              <p className="text-xl font-bold text-yellow-900">
+                                {selectedLine?.topDefectNameByName || "—"}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">Count</p>
+                              <p className="text-xl font-bold">
+                                {selectedLine?.topDefectNameCount || 0}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            <p className="text-xs text-gray-500">
+                              {selectedLine.count > 0 ? (
+                                <>
+                                  {(
+                                    (selectedLine.topDefectNameCount /
+                                      selectedLine.count) *
+                                    100
+                                  ).toFixed(1)}
+                                  % of all defects
+                                </>
+                              ) : (
+                                "0% of all defects"
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -874,10 +1210,27 @@ const DefectDashboard = () => {
                       <h3 className="text-lg font-semibold text-gray-800">
                         {selectedStyle.name} - Key Number Breakdown
                       </h3>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-700">
+                        Total Defects:{" "}
+                        <span className="font-bold text-red-700">
+                          {selectedStyle.count}
+                        </span>
+                      </p>
+                      {/* <p className="text-sm text-gray-600">
                         Style No: {selectedStyle.styleNo} | Total Defects:{" "}
                         {selectedStyle.count}
-                      </p>
+                      </p> */}
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {selectedStyle?.styleNo.map((no, index) => (
+                          <span
+                            key={index}
+                            className="px-3 py-1 text-sm font-medium bg-indigo-100 text-indigo-800 rounded-full border border-indigo-300"
+                          >
+                            {no}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                     <button
                       onClick={() => setSelectedStyle(null)}
@@ -992,20 +1345,31 @@ const DefectDashboard = () => {
                   Monthly Defect Trend
                 </h3>
               </div>
-
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={trendData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip labelFormatter={(value) => `Month: ${value}`} />
+                    <YAxis yAxisId="left" />
+                    <YAxis yAxisId="right" orientation="right" />
+                    {/* <YAxis /> */}
+                    <Tooltip content={<CustomTooltip />} />
                     <Legend />
                     <Line
+                      yAxisId="left"
                       type="monotone"
                       dataKey="count"
                       name="Defect Count"
-                      stroke="#4f46e5"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      activeDot={{ r: 8 }}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="producedQty"
+                      name="Items Produced"
+                      stroke="#10b981"
                       strokeWidth={2}
                       activeDot={{ r: 8 }}
                     />
@@ -1082,7 +1446,8 @@ const DefectDashboard = () => {
                       fill="#8884d8"
                       dataKey="percentage"
                       nameKey="name"
-                      label={({ name, percent }) =>
+                      label={({ name, percent, count }) =>
+                        // `${name}: ${(percent * 100).toFixed(1)}% (${count})`
                         `${name}: ${(percent * 100).toFixed(1)}%`
                       }
                     >
@@ -1093,7 +1458,14 @@ const DefectDashboard = () => {
                         return <Cell key={`cell-${index}`} fill={color} />;
                       })}
                     </Pie>
-                    <Tooltip formatter={(value) => `${value}%`} />
+                    {/* <Tooltip formatter={(value) => `${value}%`} /> */}
+                    <Tooltip
+                      formatter={(percentage, name, entry) => [
+                        // `${percentage}%`,
+                        `Count: ${entry.payload.count}`,
+                        // `Severity: ${name}`,
+                      ]}
+                    />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -1181,7 +1553,7 @@ const DefectDashboard = () => {
               </div>
             </div>
           </div>
-          
+
           {/* // Hierarchical Detail Location & Process Table with Relationship View  */}
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex justify-between items-center mb-4">
@@ -1484,6 +1856,7 @@ const DefectDashboard = () => {
         &copy; {new Date().getFullYear()} Quality Defect Analytics. All rights
         reserved.
       </div>
+
       <div className="mt-4 text-center text-gray-500 text-sm">
         Developed by Emessa for Garment<sup>TM</sup>
         <br />

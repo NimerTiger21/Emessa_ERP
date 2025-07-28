@@ -1,5 +1,6 @@
 // src/pages/DefectDetail.js
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
+import garmentMap from "../data/trouser-illustration.jpg"
 import { useParams, Link } from "react-router-dom";
 import { format } from "date-fns";
 import { getDefectById } from "../services/defectService";
@@ -24,9 +25,8 @@ import {
   RotateCw,
   RotateCcw,
 } from "lucide-react";
-import DefectStatus from "../components/DefectStatus";
-import DefectComments from "../components/DefectComments";
-import DefectAnalytics from "../components/DefectAnalytics";
+import DefectComments from "../components/defect/DefectComments";
+import DefectAnalytics from "../components/defect/DefectAnalytics";
 
 const DefectDetail = () => {
   const { id: defectId } = useParams();
@@ -285,7 +285,6 @@ const DefectDetail = () => {
   // Main content once data is loaded
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Fullscreen Image Viewer */}
       {/* Fullscreen Image Viewer */}
       {isFullscreen && (
         <div className="fixed inset-0 bg-black z-50 flex flex-col">
@@ -685,10 +684,12 @@ const DefectDetail = () => {
               </h3>
 
               <div className="relative h-48 bg-gray-100 rounded-lg overflow-hidden">
-                {defect.garmentMap ? (
+                {/* {defect.garmentMap ? ( */}
+                {true ? (
                   <img
                     //src={`http://localhost:5000/${defect.garmentMap}`}
-                    src={`${process.env.REACT_APP_API_URL}/${defect.garmentMap}`}
+                    // src={`${process.env.REACT_APP_API_URL}/${defect.garmentMap}`}
+                    src={garmentMap}
                     alt="Garment Map"
                     className="w-full h-full object-contain"
                   />
@@ -934,7 +935,8 @@ const DefectDetail = () => {
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-500">Style Number:</span>
                             <span className="font-medium">
-                              {defect.orderId?.style?.styleNo || "N/A"}
+                              {/* {defect.orderId?.style?.styleNo || "N/A"} */}
+                              {defect.orderId?.styleNo || "N/A"}
                             </span>
                           </div>
                           <div className="flex justify-between text-sm">
@@ -952,7 +954,8 @@ const DefectDetail = () => {
                                     className="inline-block h-4 w-4 rounded-full mr-1"
                                     style={{
                                       backgroundColor:
-                                        defect.fabricColorHex || "#ccc",
+                                        // defect.fabricColorHex || "#ccc",
+                                        defect.orderId?.fabric?.color || "#ccc",
                                     }}
                                   />
                                   {defect.orderId?.fabric?.color}

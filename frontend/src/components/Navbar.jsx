@@ -3,11 +3,10 @@ import { AiOutlineMenu } from "react-icons/ai";
 import { FiAlertTriangle, FiDroplet, FiBarChart2 } from "react-icons/fi";
 import { AiOutlineShoppingCart } from "react-icons/ai";
 
-
 import { MdKeyboardArrowDown } from "react-icons/md";
 import { TooltipComponent } from "@syncfusion/ej2-react-popups";
 import avatar from "../data/avatar.jpg";
-import { Chat, UserProfile } from ".";
+import { UserProfile } from ".";
 import { useStateContext } from "../contexts/ContextProvider";
 import { useNavigate } from "react-router-dom";
 
@@ -102,9 +101,16 @@ function Navbar() {
             className="flex items-center gap-2 cursor-pointer p-1 hover:bg-light-gray rounded-lg"
             onClick={() => handleClick("userProfile")}
           >
-            <img 
-            src={`${process.env.REACT_APP_API_URL}/${user?.avatar || avatar}`}
-            alt="avatar" className="rounded-full w-8 h-8" />
+            <img
+              src={
+                user?.avatar?.startsWith("http")
+                  ? user.avatar
+                  : `${process.env.REACT_APP_API_URL}/${user?.avatar || avatar}`
+              }
+              alt="avatar"
+              className="rounded-full w-8 h-8"
+            />
+
             <p>
               <span className="text-gray-400 text-14">Hi, </span>{" "}
               <span className="text-gray-400 font-bold ml-1 text-14">

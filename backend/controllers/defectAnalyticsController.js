@@ -15,6 +15,8 @@ exports.getDefectAnalytics = async (req, res) => {
       severity: req.query.severity,
       status: req.query.status,
       defectType: req.query.defectType, // ✅ now included here
+      defectName: req.query.defectName, // ✅ Add this
+      productionLine: req.query.productionLine, // ✅ And this
     };
 
     const analytics = await analyticsService.getDefectAnalytics(filters);

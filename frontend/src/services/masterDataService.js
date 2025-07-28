@@ -113,7 +113,7 @@ export const createStyle = async (styleData) => {
 
 export const updateStyle = async (id, data) => {
   const res = await axios.put(`${API_BASE}/styles/${id}`, data);
-  toast.success(res.data.name + " Style Updated Successfully");
+  toast.success(res.data.style.name + " Style Updated Successfully");
   return res.data;
 };
 

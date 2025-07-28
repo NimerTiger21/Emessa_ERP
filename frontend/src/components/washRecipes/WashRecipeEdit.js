@@ -537,7 +537,8 @@ const WashRecipeEdit = () => {
             <option value="">Choose an Order</option>
             {orders?.map((order) => (
               <option key={order._id} value={order._id}>
-                {order.orderNo} - {order.style?.styleNo} - {order.season}
+                {/* {order.orderNo} - {order.style?.styleNo} - {order.season} */}
+                {`${order.orderNo} • ${order.styleNo} • ${order.season}`}
               </option>
             ))}
           </select>
