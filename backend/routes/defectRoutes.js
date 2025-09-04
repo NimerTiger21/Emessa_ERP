@@ -7,6 +7,7 @@ const compressImages = require("../middleware/compressImages");
 
 // Route to get all defects (optional filters)
 router.get("/", defectController.getDefects);
+router.get("/stats", defectController.getDefectStatistics);
 
 // Route to retrieve a specific defect by ID
 router.get("/:id", defectController.getDefectById);

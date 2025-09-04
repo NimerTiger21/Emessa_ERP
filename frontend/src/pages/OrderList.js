@@ -28,6 +28,10 @@ import {
   X,
   ChevronRight,
   ChevronLeft,
+  Info,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "react-toastify";
@@ -108,24 +112,87 @@ const ModernOrderList = () => {
   // Add debounced search
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
+  const [appliedFilters, setAppliedFilters] = useState({
+    search: "",
+    styleFilter: "",
+    dateFrom: "",
+    dateTo: "",
+    customerFilter: "",
+    brandFilter: "",
+    seasonFilter: "",
+    minDefectRate: "",
+    maxDefectRate: "",
+  });
+
   const [filterOpen, setFilterOpen] = useState(false);
 
   const navigate = useNavigate();
 
-  // Separate function to load statistics
+  // Add sortable columns configuration
+  const sortableColumns = [
+    { key: "orderNo", label: "Order No", field: "orderNo" },
+    { key: "orderDate", label: "Order Date", field: "orderDate" },
+    { key: "customer", label: "Customer", field: "customer" },
+    { key: "brand", label: "Brand", field: "brand" },
+    { key: "style", label: "Style", field: "style" },
+    { key: "orderQty", label: "Order Qty", field: "orderQty" },
+    // { key: 'defectRate', label: 'Defect Rate', field: 'defectRate' }, // ✅ Add this
+    { key: "season", label: "Season", field: "season" },
+  ];
+
+  // Handle column sorting
+  const handleSort = (field) => {
+    setSort((prevSort) => ({
+      field,
+      order:
+        prevSort.field === field && prevSort.order === "asc" ? "desc" : "asc",
+    }));
+    // Reset to first page when sorting changes
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  // Get sort icon for a column
+  const getSortIcon = (field) => {
+    if (sort.field !== field) {
+      return <ArrowUpDown className="w-4 h-4 text-gray-400" />;
+    }
+    return sort.order === "asc" ? (
+      <ArrowUp className="w-4 h-4 text-indigo-600" />
+    ) : (
+      <ArrowDown className="w-4 h-4 text-indigo-600" />
+    );
+  };
+
+  // Sortable Header Component
+  const SortableHeader = ({ field, label, className = "" }) => (
+    <th
+      className={`px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors select-none ${className}`}
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center justify-between group">
+        <span className="group-hover:text-gray-700 transition-colors">
+          {label}
+        </span>
+        <div className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          {getSortIcon(field)}
+        </div>
+      </div>
+    </th>
+  );
+
+  // Regular Header Component (non-sortable)
+  const RegularHeader = ({ label, className = "" }) => (
+    <th
+      className={`px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${className}`}
+    >
+      {label}
+    </th>
+  );
+
+  // Update loadStatistics to use appliedFilters
   const loadStatistics = async () => {
     try {
-      const stats = await fetchOrderStatistics({
-        search,
-        styleFilter,
-        dateFrom,
-        dateTo,
-        customerFilter,
-        brandFilter,
-        seasonFilter,
-        minDefectRate,
-        maxDefectRate,
-      });
+      const stats = await fetchOrderStatistics({search: debouncedSearch, ...appliedFilters});
       setStatistics(stats);
     } catch (error) {
       console.error("Error loading statistics:", error);
@@ -136,18 +203,17 @@ const ModernOrderList = () => {
   useEffect(() => {
     loadStatistics();
   }, [
-    search,
+    // search,
+    debouncedSearch,
     styleFilter,
-    dateFrom,
-    dateTo,
-    customerFilter,
-    brandFilter,
-    seasonFilter,
-    minDefectRate,
-    maxDefectRate,
+    appliedFilters.dateFrom,
+    appliedFilters.dateTo,
+    appliedFilters.customerFilter,
+    appliedFilters.brandFilter,
+    appliedFilters.seasonFilter,
+    appliedFilters.minDefectRate,
+    appliedFilters.maxDefectRate,
   ]);
-
-  // Fetch orders from API
   useEffect(() => {
     const loadOrders = async () => {
       try {
@@ -155,19 +221,18 @@ const ModernOrderList = () => {
         const data = await fetchOrders({
           page: pagination.page,
           limit: pagination.limit,
-          // limit: 10000, // Large number to get all records
           sortField: sort.field,
           sortOrder: sort.order,
-          // search,
-          search: debouncedSearch, // Use debounced search here
-          style: styleFilter,
-          dateFrom,
-          dateTo,
-          customer: customerFilter,
-          brand: brandFilter,
-          season: seasonFilter,
-          minDefectRate,
-          maxDefectRate,
+          search: debouncedSearch, // Use debounced search
+          // search: appliedFilters.search,
+          style: appliedFilters.styleFilter,
+          dateFrom: appliedFilters.dateFrom,
+          dateTo: appliedFilters.dateTo,
+          customer: appliedFilters.customerFilter,
+          brand: appliedFilters.brandFilter,
+          season: appliedFilters.seasonFilter,
+          minDefectRate: appliedFilters.minDefectRate,
+          maxDefectRate: appliedFilters.maxDefectRate,
         });
         setOrders(data.data);
         setPagination((prev) => ({
@@ -183,34 +248,20 @@ const ModernOrderList = () => {
       }
     };
 
-    const timer = setTimeout(() => {
-      loadOrders();
-    }, 500); // Add debounce to filter changes
-
-    return () => clearTimeout(timer);
-
-    // loadOrders();
+    loadOrders();
   }, [
     pagination.page,
     pagination.limit,
     sort,
-    // search,
-    debouncedSearch, // Add debouncedSearch to dependencies
-    styleFilter,
-    dateFrom,
-    dateTo,
-    customerFilter,
-    brandFilter,
-    seasonFilter,
-    minDefectRate,
-    maxDefectRate,
+    debouncedSearch, // Keep debounced search dependency
+    appliedFilters, // Only depend on appliedFilters now
   ]);
 
   // Add debounce effect
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-    }, 300); // 300ms delay
+    }, 1500); // 300ms delay
 
     return () => clearTimeout(timer);
   }, [search]);
@@ -257,11 +308,11 @@ const ModernOrderList = () => {
       );
       setFilteredBrands(filtered);
       setBrandDisabled(false);
-      setBrandFilter(""); // Reset brand selection
+      setBrandFilter(""); // Reset brand selection when customer changes
     } else {
       setFilteredBrands([]);
       setBrandDisabled(true);
-      setBrandFilter("");
+      setBrandFilter(""); // Clear brand when customer is cleared
     }
   }, [customerFilter, brands]);
 
@@ -277,12 +328,29 @@ const ModernOrderList = () => {
     } else {
       setFilteredStyles([]);
       setStyleDisabled(true);
-      setStyleFilter("");
+      setStyleFilter(""); // Clear style when brand is cleared
     }
   }, [brandFilter, styles]);
 
+  // Add this function to apply filters
+  const applyFilters = () => {
+    setAppliedFilters({
+      // search,
+      styleFilter,
+      dateFrom,
+      dateTo,
+      customerFilter,
+      brandFilter,
+      seasonFilter,
+      minDefectRate,
+      maxDefectRate,
+    });
+    setFilterOpen(false);
+    setPagination((prev) => ({ ...prev, page: 1 })); // Reset to first page
+  };
+
+  // Update the resetFilters function
   const resetFilters = () => {
-    // Reset all filters and pagination
     setSearch("");
     setStyleFilter("");
     setDateFrom("");
@@ -293,12 +361,23 @@ const ModernOrderList = () => {
     setMinDefectRate("");
     setMaxDefectRate("");
 
+    setAppliedFilters({
+      // search: "",
+      styleFilter: "",
+      dateFrom: "",
+      dateTo: "",
+      customerFilter: "",
+      brandFilter: "",
+      seasonFilter: "",
+      minDefectRate: "",
+      maxDefectRate: "",
+    });
+
     setPagination({ page: 1, limit: 10, totalPages: 1 });
     setFilterOpen(false);
     setSort({ field: "orderDate", order: "desc" });
     setIsExportDialogOpen(false);
     setIsModalOpen(false);
-    // loadOrders();
   };
 
   // Handle Pagination
@@ -495,6 +574,15 @@ const ModernOrderList = () => {
     return orderDate > weekAgo;
   }).length;
 
+  // Calculate total order value (assuming average unit price for demonstration)
+  const avgUnitPrice = 15; // Example: $15 per unit
+  const totalOrderValue = totalQuantity * avgUnitPrice;
+
+  // Calculate potential revenue loss due to defects
+  const defectCost = totalDefects * avgUnitPrice; // Cost of defective units
+  const reworkCost = totalDefects * 5; // Estimated rework cost per defective unit
+  const totalRevenueLoss = defectCost + reworkCost;
+
   const StatCard = ({
     title,
     value,
@@ -537,6 +625,7 @@ const ModernOrderList = () => {
     </div>
   );
 
+  // Update the FilterPanel component
   const FilterPanel = () => (
     <div
       className={`fixed inset-0 z-50 transition-opacity duration-300 ${
@@ -568,7 +657,6 @@ const ModernOrderList = () => {
           </div>
         </div>
 
-        {/* 🔍 Filters Section */}
         <div className="p-6 space-y-6">
           {/* 📅 Date Range */}
           <div>
@@ -590,7 +678,7 @@ const ModernOrderList = () => {
               />
             </div>
           </div>
-          {/* 🧑‍🤝‍🧑 Customer, Brand, Style, Season, Defect Rate Filters */}
+
           {/* 👤 Customer */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -616,11 +704,9 @@ const ModernOrderList = () => {
               Brand
             </label>
             <select
-              // className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               value={brandFilter}
               onChange={(e) => setBrandFilter(e.target.value)}
               disabled={brandDisabled}
-              // className="select-field w-full"
               className={`select-field w-full py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
                 brandDisabled ? "bg-gray-100 cursor-not-allowed" : ""
               }`}
@@ -632,12 +718,9 @@ const ModernOrderList = () => {
                 </option>
               ))}
             </select>
-            <span className="bg-pink-100 text-pink-700 px-2 py-1 rounded-full text-xs font-medium">
-              🎨 Brand-linked Styles Active
-            </span>
           </div>
 
-          {/* 🎨 Style + Reset */}
+          {/* 🎨 Style */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Style
@@ -684,6 +767,7 @@ const ModernOrderList = () => {
                 type="number"
                 min="0"
                 max="100"
+                step="1"
                 value={minDefectRate}
                 onChange={(e) => setMinDefectRate(e.target.value)}
                 placeholder="Min"
@@ -709,10 +793,7 @@ const ModernOrderList = () => {
               Clear All
             </button>
             <button
-              onClick={() => {
-                setFilterOpen(false);
-                // loadOrders(); // Reload orders with new filters
-              }}
+              onClick={applyFilters} // Use applyFilters instead of closing directly
               className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
               Apply Filters
@@ -726,81 +807,101 @@ const ModernOrderList = () => {
   const ActiveFiltersDisplay = () => {
     const activeFilters = [];
 
-    if (search)
+    if (debouncedSearch)
       activeFilters.push({ label: "Search", value: search, key: "search" });
-    if (dateFrom || dateTo)
+    if (appliedFilters.dateFrom || appliedFilters.dateTo)
       activeFilters.push({
         label: "Date Range",
         value: `${
-          dateFrom ? new Date(dateFrom).toLocaleDateString() : "Start"
-        } - ${dateTo ? new Date(dateTo).toLocaleDateString() : "End"}`,
+          appliedFilters.dateFrom ? new Date(appliedFilters.dateFrom).toLocaleDateString() : "Start"
+        } - ${appliedFilters.dateTo ? new Date(appliedFilters.dateTo).toLocaleDateString() : "End"}`,
         key: "date",
       });
-    if (customerFilter) {
-      const customer = customers.find((c) => c._id === customerFilter);
+    if (appliedFilters.customerFilter) {
+      const customer = customers.find((c) => c._id === appliedFilters.customerFilter);
       activeFilters.push({
         label: "Customer",
         value: customer?.name || "Unknown",
         key: "customer",
       });
     }
-    if (brandFilter) {
-      const brand = brands.find((b) => b._id === brandFilter);
+    if (appliedFilters.brandFilter) {
+      const brand = brands.find((b) => b._id === appliedFilters.brandFilter);
       activeFilters.push({
         label: "Brand",
         value: brand?.name || "Unknown",
         key: "brand",
       });
     }
-    if (styleFilter) {
-      const style = styles.find((s) => s._id === styleFilter);
+    if (appliedFilters.styleFilter) {
+      const style = styles.find((s) => s._id === appliedFilters.styleFilter);
       activeFilters.push({
         label: "Style",
         value: style?.name || "Unknown",
         key: "style",
       });
     }
-    if (seasonFilter)
+    if (appliedFilters.seasonFilter)
       activeFilters.push({
         label: "Season",
-        value: seasonFilter,
+        value: appliedFilters.seasonFilter,
         key: "season",
       });
-    if (minDefectRate || maxDefectRate) {
+    if (appliedFilters.minDefectRate || appliedFilters.maxDefectRate) {
       activeFilters.push({
         label: "Defect Rate",
-        value: `${minDefectRate || "0"}% - ${maxDefectRate || "100"}%`,
+        value: `${appliedFilters.minDefectRate || "0"}% - ${appliedFilters.maxDefectRate || "100"}%`,
         key: "defectRate",
       });
     }
 
-    const removeFilter = (filterKey) => {
-      switch (filterKey) {
-        case "search":
-          setSearch("");
-          break;
-        case "date":
-          setDateFrom("");
-          setDateTo("");
-          break;
-        case "customer":
-          setCustomerFilter("");
-          break;
-        case "brand":
-          setBrandFilter("");
-          break;
-        case "style":
-          setStyleFilter("");
-          break;
-        case "season":
-          setSeasonFilter("");
-          break;
-        case "defectRate":
-          setMinDefectRate("");
-          setMaxDefectRate("");
-          break;
-      }
-    };
+    // This ensures the complete dependency chain is maintained: 
+    // Customer → Brand → Style
+    // Update the removeFilter function in ActiveFiltersDisplay
+const removeFilter = (filterKey) => {
+  switch (filterKey) {
+    case "search":
+      setSearch("");
+      break;
+    case "date":
+      setDateFrom("");
+      setDateTo("");
+      setAppliedFilters(prev => ({ ...prev, dateFrom: "", dateTo: "" }));
+      break;
+    case "customer":
+      setCustomerFilter(""); // This will trigger the existing useEffect to clear brand UI state
+      // Also clear brand and style from appliedFilters since they depend on customer
+      setAppliedFilters(prev => ({ 
+        ...prev, 
+        customerFilter: "",
+        brandFilter: "", // Clear brand from applied filters
+        styleFilter: "" // Also clear style from applied filters
+      }));
+      break;
+    case "brand":
+      setBrandFilter(""); // This will trigger the existing useEffect to clear style UI state
+      // Also clear style from appliedFilters since it depends on brand
+      setAppliedFilters(prev => ({ 
+        ...prev, 
+        brandFilter: "",
+        styleFilter: "" // Clear style from applied filters
+      }));
+      break;
+    case "style":
+      setStyleFilter("");
+      setAppliedFilters(prev => ({ ...prev, styleFilter: "" }));
+      break;
+    case "season":
+      setSeasonFilter("");
+      setAppliedFilters(prev => ({ ...prev, seasonFilter: "" }));
+      break;
+    case "defectRate":
+      setMinDefectRate("");
+      setMaxDefectRate("");
+      setAppliedFilters(prev => ({ ...prev, minDefectRate: "", maxDefectRate: "" }));
+      break;
+  }
+};
 
     if (activeFilters.length === 0) return null;
 
@@ -970,7 +1071,6 @@ const ModernOrderList = () => {
               </button>
               <button
                 onClick={() => setIsExportDialogOpen(true)}
-                // className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors shadow-sm"
                 disabled={isExporting}
                 className={`flex items-center gap-2 px-4 py-2 ${
                   isExporting ? "bg-green-400" : "bg-green-600"
@@ -1000,7 +1100,6 @@ const ModernOrderList = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
             title="Total Orders"
-            // value={totalOrders.toLocaleString()}
             value={statistics.totalOrders.toLocaleString()}
             icon={Package}
             trend="up"
@@ -1010,7 +1109,6 @@ const ModernOrderList = () => {
           />
           <StatCard
             title="Total Quantity"
-            // value={totalQuantity.toLocaleString()}
             value={statistics.totalQuantity.toLocaleString()}
             icon={BarChart3}
             trend="up"
@@ -1020,7 +1118,6 @@ const ModernOrderList = () => {
           />
           <StatCard
             title="Avg Defect Rate"
-            // value={`${avgDefectRate.toFixed(2)}%`}
             value={`${statistics.avgDefectRate.toFixed(2)}%`}
             icon={Activity}
             trend="down"
@@ -1028,7 +1125,7 @@ const ModernOrderList = () => {
             color="bg-orange-500"
             bgColor="bg-orange-50/80"
           />
-          <StatCard
+          {/* <StatCard
             title="Quality Score"
             value="92.5"
             icon={Target}
@@ -1036,6 +1133,15 @@ const ModernOrderList = () => {
             trendValue="+2.1"
             color="bg-purple-500"
             bgColor="bg-purple-50/80"
+          /> */}
+          <StatCard
+            title="Revenue Impact"
+            value={`${(totalRevenueLoss / 1000).toFixed(1)}K`}
+            icon={TrendingDown}
+            trend="down"
+            trendValue="-$2.3K"
+            color="bg-red-500"
+            bgColor="bg-red-50/80"
           />
         </div>
 
@@ -1045,12 +1151,7 @@ const ModernOrderList = () => {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center space-x-2">
-                  <p className="text-sm text-gray-600">
-                    High Defect Orders{" "}
-                    {/* <span className="block text-xs text-gray-500">
-                    Rate exceeds 4%
-                  </span> */}
-                  </p>
+                  <p className="text-sm text-gray-600">High Defect Orders</p>
                   <div className="relative group">
                     <FiInfo className="w-4 h-4 text-gray-400 cursor-pointer" />
                     <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block text-xs bg-gray-800 text-white px-2 py-1 rounded shadow-lg z-10 whitespace-nowrap">
@@ -1059,7 +1160,6 @@ const ModernOrderList = () => {
                   </div>
                 </div>
                 <p className="text-2xl font-bold text-red-600">
-                  {/* {highDefectOrders} */}
                   {statistics.highDefectOrders}
                 </p>
               </div>
@@ -1088,8 +1188,18 @@ const ModernOrderList = () => {
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Recent Orders</p>
-                <p className="text-2xl font-bold text-blue-600">
+                <div className="flex items-center space-x-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Recent Orders
+                  </p>
+                  <div className="relative group">
+                    <Info className="w-4 h-4 text-gray-400 dark:text-gray-500 cursor-pointer" />
+                    <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block text-xs bg-gray-800 dark:bg-gray-700 text-white px-2 py-1 rounded shadow-lg z-10 whitespace-nowrap">
+                      Orders Added in last 7 days
+                    </div>
+                  </div>
+                </div>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                   {recentOrders}
                 </p>
               </div>
@@ -1105,7 +1215,7 @@ const ModernOrderList = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search orders by number, customer, or style..."
+                placeholder="Search orders by number, keyNo, or styleNo..."
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white/50 backdrop-blur-sm"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -1143,35 +1253,28 @@ const ModernOrderList = () => {
           <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-3xl p-12 shadow-2xl border border-white/20 dark:border-gray-700/20 text-center">
             <div className="inline-flex items-center gap-3 text-blue-600">
               <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-xl font-medium">Loading students...</span>
+              <span className="text-xl font-medium">Loading orders...</span>
             </div>
           </div>
         ) : (
           <>
-            {/* Orders Table */}
+            {/* Orders Table with Sortable Headers */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50/80 backdrop-blur-sm">
                     <tr>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Order Details
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Customer & Brand
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Style & Fabric
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Quantities
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Defect Rate
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
+                      <SortableHeader field="orderNo" label="Order Details" />
+                      <SortableHeader
+                        field="customer"
+                        label="Customer & Brand"
+                      />
+                      <SortableHeader field="style" label="Style & Fabric" />
+                      <SortableHeader field="orderQty" label="Quantities" />
+                      <SortableHeader field="defectRate" label="Defect Rate" />
+                      {/* <ClientSortableHeader field="defectRate" label="Defect Rate" /> */}
+                      {/* <RegularHeader label="Defect Rate" /> */}
+                      <RegularHeader label="Actions" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -1216,12 +1319,23 @@ const ModernOrderList = () => {
 
                           <td className="px-6 py-4">
                             <div className="space-y-1">
-                              <div className="font-medium text-gray-900">
+                              {/* Style Name */}
+                              <div className="font-semibold text-gray-900">
                                 {order.style.name}
                               </div>
-                              <div className="text-sm text-gray-600">
-                                {order.fabric.name}
+
+                              {/* Fabric Name & Supplier */}
+                              <div className="text-sm">
+                                <span className="font-semibold text-indigo-700">
+                                  {order.fabric.name}
+                                </span>
+                                <span className="inline-block bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">
+                                  {" "}
+                                  — {order.fabricSupplier.name}
+                                </span>
                               </div>
+
+                              {/* Composition */}
                               <div className="text-xs text-gray-500">
                                 {order.fabric.fabricCompositions
                                   .map(
@@ -1316,6 +1430,28 @@ const ModernOrderList = () => {
                     </span>{" "}
                     of <span className="font-medium">{pagination.total}</span>{" "}
                     orders
+                  </div>
+                  <div className="flex items-center">
+                    <label className="text-sm text-gray-700 dark:text-gray-300 mr-2">
+                      Items per page:
+                    </label>
+                    <select
+                      value={pagination.limit}
+                      onChange={(e) =>
+                        setPagination({
+                          ...pagination,
+                          page: 1,
+                          limit: Number(e.target.value),
+                        })
+                      }
+                      className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -1429,7 +1565,6 @@ const ModernOrderList = () => {
         <StyleModal
           closeModal={closeModal}
           isOpen={isCreateStyleModalOpen}
-          //editStyle={editStyle}
           refreshStyleList={loadStyles}
         />
       )}

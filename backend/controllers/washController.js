@@ -170,7 +170,7 @@ exports.createWashRecipe = async (req, res) => {
 
       res
         .status(201)
-        .json({ message: "Wash recipe created successfully.", washRecipe }); // steps: savedSteps * Optional: Send Updated IDs to the Frontend
+        .json({ message: "Wash recipe created successfully. 😎", washRecipe }); // steps: savedSteps * Optional: Send Updated IDs to the Frontend
       // If needed, the backend can return the saved steps with their new _id values so the frontend can update its state accordingly.
     } catch (error) {
       // Rollback related data if any part of the operation fails
@@ -389,7 +389,7 @@ exports.deleteWashRecipe = async (req, res) => {
 
     res
       .status(200)
-      .json({ message: "Wash recipe and related data deleted successfully." });
+      .json({ message: "Wash recipe and related data deleted successfully. 😱" });
   } catch (error) {
     console.error("Error deleting wash recipe:", error);
     res.status(500).json({ message: "Error deleting wash recipe." });
@@ -596,7 +596,7 @@ exports.updateWashRecipe = async (req, res) => {
       });
 
     res.status(200).json({
-      message: "Wash recipe updated successfully.",
+      message: "Wash recipe updated successfully. 😎",
       washRecipe: updatedWashRecipe,
     });
   } catch (error) {

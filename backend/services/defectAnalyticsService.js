@@ -3,10 +3,10 @@ const { DateTime } = require("luxon");
 const Defect = require("../models/defect/Defect");
 const Order = require("../models/order/Order");
 const WashRecipe = require("../models/washRecipe/WashRecipe");
-const Fabric = require("../models/order/Fabric");
+const Fabric = require("../models/fabric/Fabric");
 const Style = require("../models/order/Style");
-const FabricComposition = require("../models/order/FabricComposition");
-const CompositionItem = require("../models/order/CompositionItem");
+const FabricComposition = require("../models/fabric/FabricComposition");
+const CompositionItem = require("../models/fabric/CompositionItem");
 const DefectType = require("../models/defect/DefectType");
 const DefectName = require("../models/defect/DefectName");
 const mongoose = require("mongoose");
@@ -26,25 +26,40 @@ exports.getDefectAnalytics = async (filters = {}) => {
     // But you’re subtracting 3 hours (for EEST), resulting in: 2025-06-30T21:00:00.000Z
     // This shifts the date backwards into June 30th in UTC
 
-    const start = new Date(filters.startDate);
-    start.setHours(0, 0, 0, 0); // start of day
+    // const start = new Date(filters.startDate);
+    // start.setHours(0, 0, 0, 0); // start of day
 
-    const end = new Date(filters.endDate);
-    end.setHours(23, 59, 59, 999); // end of day
+    // const end = new Date(filters.endDate);
+    // end.setHours(23, 59, 59, 999); // end of day
 
-    // Apply date range filter if provided
-    if (filters.startDate && filters.endDate) {
-      query.detectedDate = {
-        $gte: start,
-        $lte: end,
-      };
-      // query.detectedDate = {
-      //   // $gte: new Date(filters.startDate),
-      //   // $lte: new Date(filters.endDate),
-      //   $gte: new Date(`${filters.startDate}T00:00:00.000Z`),
-      //   $lte: new Date(`${filters.endDate}T23:59:59.999Z`),
-      // };
-    }
+    // // Apply date range filter if provided
+    // if (filters.startDate && filters.endDate) {
+    //   query.detectedDate = {
+    //     $gte: start,
+    //     $lte: end,
+    //   };
+    //   // query.detectedDate = {
+    //   //   // $gte: new Date(filters.startDate),
+    //   //   // $lte: new Date(filters.endDate),
+    //   //   $gte: new Date(`${filters.startDate}T00:00:00.000Z`),
+    //   //   $lte: new Date(`${filters.endDate}T23:59:59.999Z`),
+    //   // };
+    // }
+
+    const startLuxon = filters.startDate
+  ? DateTime.fromISO(filters.startDate, { zone: "Africa/Cairo" }).startOf("day")
+  : null;
+
+const endLuxon = filters.endDate
+  ? DateTime.fromISO(filters.endDate, { zone: "Africa/Cairo" }).endOf("day")
+  : null;
+
+if (startLuxon?.isValid && endLuxon?.isValid) {
+  query.detectedDate = {
+    $gte: startLuxon.toUTC().toJSDate(),
+    $lte: endLuxon.toUTC().toJSDate(),
+  };
+}
 
     // console.log("Date filter range:", {
     //   from: start.toISOString(),
@@ -244,11 +259,22 @@ exports.getDefectAnalytics = async (filters = {}) => {
                 .join(", ") || "N/A",
 
             totalProduced: 0,
+            processedOrders: new Set(), // Track which orders we've already counted
           };
         }
+        // Add defect count
+        fabricMap[fabricId].count += defect.defectCount || 1;
         //fabricMap[fabricId].count += 1;
-        fabricMap[fabricId].count += defect.defectCount || 1; // <-- Add the effect value
-        fabricMap[fabricId].totalProduced += defect.orderId.orderQty || 0;
+
+        // Add order quantity only if we haven't processed this order before
+        const orderId = defect.orderId._id.toString();
+        if (!fabricMap[fabricId].processedOrders.has(orderId)) {
+          fabricMap[fabricId].totalProduced += defect.orderId.orderQty || 0;
+          fabricMap[fabricId].processedOrders.add(orderId);
+        }
+
+        // fabricMap[fabricId].count += defect.defectCount || 1; // <-- Add the effect value
+        // fabricMap[fabricId].totalProduced += defect.orderId.orderQty || 0;
       }
 
       // Process style data
@@ -593,8 +619,9 @@ exports.getDefectAnalytics = async (filters = {}) => {
         //   month: "short",
         //   year: "numeric",
         // }),
-        monthName: DateTime.fromFormat(entry.month, "yyyy-MM", { zone: "utc" }).toFormat("LLL yyyy"),
-
+        monthName: DateTime.fromFormat(entry.month, "yyyy-MM", {
+          zone: "utc",
+        }).toFormat("LLL yyyy"),
       }))
       .sort((a, b) => a.month.localeCompare(b.month));
 
@@ -604,8 +631,10 @@ exports.getDefectAnalytics = async (filters = {}) => {
     );
 
     // Fetch those orders and sum their orderQty
+    // Fetch those orders BUT APPLY THE SEASON FILTER
     const orders = await Order.find(
       { _id: { $in: Array.from(uniqueOrderIds) } },
+      // { season: season },// ← CRITICAL: Add season filter here
       { orderQty: 1 }
     );
     const totalProducedItems = orders.reduce(

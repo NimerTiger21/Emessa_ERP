@@ -26,6 +26,11 @@ import Unauthorized from "./pages/Unauthorized"; // ⬅️ Add this import
 import WashRecipeEdit from "./components/washRecipes/WashRecipeEdit";
 import WashRecipeClone from "./components/washRecipes/WashRecipeClone";
 import GarmentMapMockup from "./pages/GarmentMap";
+import ProductionPlanningSystem from "./pages/ProductionPlanningSystem";
+import ProductionPlanningSystem2 from "./pages/ProductionPlanningSystem2";
+import ProductionScheduler from "./pages/ProductionScheduler";
+import ProductionPlanningSystem3 from "./pages/ProductionPlanningSystem3";
+import ProductionPlanningSystem4 from "./pages/ProductionPlanningSystem4";
 
 function App() {
   const {
@@ -138,6 +143,11 @@ function App() {
                 <Route path="/fabriclist" element={<FabricList />} />
                 <Route path="/stylelist" element={<StyleList />} />
                 <Route path="/pyramid" element={<GarmentMapMockup />} />
+                <Route path="/Planning" element={<ProductionPlanningSystem />} />
+                <Route path="/Planning2" element={<ProductionPlanningSystem2 />} />
+                <Route path="/Planning3" element={<ProductionScheduler />} />
+                <Route path="/Planning4" element={<ProductionPlanningSystem3 />} />
+                <Route path="/Planning5" element={<ProductionPlanningSystem4 />} />
 
                 {/* Optional catch route */}
                 <Route path="/unauthorized" element={<Unauthorized />} />

@@ -2,7 +2,6 @@
 import { toast } from "react-toastify";
 import axios from "./api";
 
-
 const API_URL = "/api/wash-recipes";
 
 export const createWashRecipe = async (recipeData) => {
@@ -12,7 +11,7 @@ export const createWashRecipe = async (recipeData) => {
     return response.data;
   } catch (error) {
     console.error("Error creating Wash Recipe:", error);
-//    return error.response.data;
+    //    return error.response.data;
     throw error;
   }
 };
@@ -24,7 +23,7 @@ export const fetchWashRecipes = async () => {
     return response.data;
   } catch (error) {
     console.error("Error fetching Wash Recipes:", error);
-//    return error.response.data;
+    //    return error.response.data;
     throw error;
   }
 };
@@ -50,7 +49,6 @@ export const deleteWashRecipe = async (id) => {
   return res.data;
 };
 
-
 /**
  * Update an existing wash recipe
  * @param {string} id - The ID of the wash recipe to update
@@ -59,7 +57,6 @@ export const deleteWashRecipe = async (id) => {
  */
 export const updateWashRecipe = async (id, recipeData) => {
   try {
-    
     // const response = await fetch(`${process.env.REACT_APP_API_URL}/wash-recipes/${id}`, {
     //   method: 'PUT',
     //   headers: {
@@ -70,16 +67,16 @@ export const updateWashRecipe = async (id, recipeData) => {
     // });
     const response = await axios.put(`${API_URL}/${id}`, recipeData);
     //console.log("Response from updateWashRecipe:", response);
-    
+
     // if (!response.ok) {
     //   const errorData = await response.data;
     //   console.error('Error updating wash recipe:', errorData);
     //   throw new Error(errorData.message || 'Failed to update wash recipe');
     // }
-    toast.success(response.data.message);    
+    toast.success(response.data.message);
     return response.data;
   } catch (error) {
-    console.error('Error updating wash recipe:', error);
+    console.error("Error updating wash recipe:", error);
     throw error;
   }
 };

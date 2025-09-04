@@ -14,7 +14,6 @@ export const addDefectToOrder = async (orderId, defectData) => {
   }
 };
 
-
 export const createDefect = async ({ formDataWithImages }) => {
   try {
     const response = await axios.post(API_URL, formDataWithImages, {
@@ -142,6 +141,35 @@ export const fetchDefects = async ({
   }
 };
 
+export const fetchDefectStatistics = async (filters) => {
+  const response = await axios.get(`${API_URL}/stats`, { params: filters });
+  return response.data;
+};
+
+// export const fetchDefectStatistics = async (filters) => {
+//   try {
+//     // Convert empty strings to undefined to avoid sending empty params
+//     const params = {
+//       search: filters.search || undefined,
+//       severity: filters.severity || undefined,
+//       defectType: filters.defectType || undefined,
+//       defectName: filters.defectName || undefined,
+//       productionLine: filters.productionLine || undefined,
+//       dateFrom: filters.dateFrom || undefined,
+//       dateTo: filters.dateTo || undefined
+//     };
+//     console.log("Fetching defect statistics with params:", params);
+
+//     // Remove undefined values
+//     Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+//     const response = await axios.get(`${API_URL}/stats`, { params });
+//     return response.data;
+//   } catch (error) {
+//     console.error('Error fetching defect statistics:', error);
+//     throw error;
+//   }
+// };
 
 export const getDefectAnalytics = async (defectId) => {
   const res = await axios.get(`${API_URL}/${defectId}/analytics`);

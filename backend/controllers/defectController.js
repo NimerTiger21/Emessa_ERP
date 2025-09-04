@@ -3,6 +3,7 @@ const Defect = require("../models/defect/Defect");
 const Order = require("../models/order/Order");
 const fs = require("fs"); // Add this import at the top
 const path = require("path"); // Add this line
+const mongoose = require('mongoose');
 
 // Log a new defect // Create a defect and associate it with an order
 exports.createDefect = async (req, res) => {
@@ -61,7 +62,7 @@ exports.createDefect = async (req, res) => {
     const populatedDefect = await Defect.findById(savedDefect._id)
       .populate("defectName", "name")
       .populate("defectType", "name")
-      .populate("orderId", "orderNo");
+      .populate("orderId", "orderNo season");
 
     res.status(201).json({
       message: "Backend: Defect created and associated with order",
@@ -137,11 +138,6 @@ exports.getDefects = async (req, res) => {
       };
     }
 
-    // Add filter by month if provided
-    // if (detectedDate) {
-    //   filters.detectedDate = new Date(detectedDate).toLocaleString("default", { month: "long" });
-    // }
-
     // Create sort object
     const sort = {};
     sort[sortField] = sortOrder === "asc" ? 1 : -1;
@@ -155,7 +151,7 @@ exports.getDefects = async (req, res) => {
       .sort(sort)
       .skip(skip)
       .limit(limitNum)
-      .populate("orderId", "orderNo") // Populate orderId with only orderNo field
+      .populate("orderId", "orderNo season") // Populate orderId with only orderNo field
       .populate({
         path: "defectName",
         select: "name",
@@ -331,7 +327,7 @@ exports.updateDefect = async (req, res) => {
 
     // Return populated defect data
     const populatedDefect = await Defect.findById(updatedDefect._id)
-      .populate("orderId", "orderNo")
+      .populate("orderId", "orderNo season")
       .populate("defectName", "name")
       .populate("defectType", "name")
       .populate("defectPlace", "name")
@@ -572,5 +568,152 @@ exports.getDefectAnalytics = async (req, res) => {
   } catch (err) {
     console.error("Error in getDefectAnalytics", err);
     res.status(500).json({ message: "Error loading analytics" });
+  }
+};
+
+exports.getDefectStatistics = async (req, res) => {
+  try {
+    // Build the query
+    const query = {};
+    
+    // Text search
+    if (req.query.search) {
+      console.log("Search query:", req.query.search);
+      query.$or = [
+        // { 'orderId.orderNo': { $regex: req.query.search, $options: 'i' } },
+        { 'order.orderNo': { $regex: req.query.search, $options: 'i' } },
+        { description: { $regex: req.query.search, $options: 'i' } },
+        { 'defectType.name': { $regex: req.query.search, $options: 'i' } },
+        { 'defectName.name': { $regex: req.query.search, $options: 'i' } }
+      ];
+    }
+    //console.log("Query for statistics:", req.query);
+
+    // Severity filter
+    if (req.query.severity) {
+      query.severity = req.query.severity;
+    }
+
+    // Defect type filter - FIXED
+    if (req.query.defectType) {
+      query['defectType'] = new mongoose.Types.ObjectId(req.query.defectType);
+    }
+
+    // Defect name filter - similarly fix if needed
+    if (req.query.defectName) {
+      query['defectName'] = new mongoose.Types.ObjectId(req.query.defectName);
+    }
+
+    // Production line filter
+    if (req.query.productionLine) {
+      query.productionLine = req.query.productionLine;
+    }
+
+    // Date range filter
+    if (req.query.dateFrom || req.query.dateTo) {
+      query.detectedDate = {};
+      if (req.query.dateFrom) {
+        query.detectedDate.$gte = new Date(req.query.dateFrom);
+      }
+      if (req.query.dateTo) {
+        query.detectedDate.$lte = new Date(req.query.dateTo);
+      }
+    }
+
+    // Calculate three days ago for recent defects
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    const stats = await Defect.aggregate([
+      // Lookup for Order to access orderNo
+  {
+    $lookup: {
+      from: "orders", // collection name (probably "orders")
+      localField: "orderId",
+      foreignField: "_id",
+      as: "order"
+    }
+  },
+  { $unwind: { path: "$order", preserveNullAndEmptyArrays: true } },
+
+  // Lookup for DefectType
+  {
+    $lookup: {
+      from: "defecttypes", // collection name likely "defecttypes"
+      localField: "defectType",
+      foreignField: "_id",
+      as: "defectType"
+    }
+  },
+  { $unwind: { path: "$defectType", preserveNullAndEmptyArrays: true } },
+
+  // Lookup for DefectName
+  {
+    $lookup: {
+      from: "defectnames", // collection name likely "defectnames"
+      localField: "defectName",
+      foreignField: "_id",
+      as: "defectName"
+    }
+  },
+  { $unwind: { path: "$defectName", preserveNullAndEmptyArrays: true } },
+
+  // Now apply your $match with search over joined fields
+  { $match: query },
+      {
+        $group: {
+          _id: null,
+          totalDefects: { $sum: 1 },
+          totalDefectCount: { $sum: "$defectCount" },
+          criticalDefects: {
+            $sum: {
+              $cond: [{ $eq: ["$severity", "High"] }, 1, 0]
+            }
+          },
+          recentDefects: {
+            $sum: {
+              $cond: [
+                { $gte: ["$detectedDate", threeDaysAgo] },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          totalDefects: 1,
+          totalDefectCount: 1,
+          criticalDefects: 1,
+          recentDefects: 1,
+          avgDefectsPerOrder: {
+            $cond: [
+              { $eq: ["$totalDefects", 0] },
+              0,
+              { $divide: ["$totalDefectCount", "$totalDefects"] }
+            ]
+          }
+        }
+      }
+    ]);
+
+    // Return default values if no defects found
+    const result = stats[0] || {
+      totalDefects: 0,
+      totalDefectCount: 0,
+      criticalDefects: 0,
+      recentDefects: 0,
+      avgDefectsPerOrder: 0
+    };
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error fetching defect statistics:", error);
+    res.status(500).json({ 
+      message: "Server error while fetching statistics",
+      error: error.message 
+    });
   }
 };

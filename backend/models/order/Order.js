@@ -1,13 +1,14 @@
 const mongoose = require("mongoose");
 
 const OrderSchema = new mongoose.Schema({
-    orderNo: { type: String, required: true, unique: true }, // Unique Order Number
+    // orderNo: { type: String, required: true, unique: true }, // Unique Order Number
+    orderNo: { type: String, required: true }, // No longer unique by itself
     //emessaOrderNo: String, // Internal Order Number
     keyNo: String, // Key Number
-    season: String, // Season
+    season: { type: String, required: true }, // Make season required
     orderQty: { type: Number, required: true, min: 1 }, // Quantity
     orderDate: { type: Date, required: true }, // Order Date
-    //deliveryDate: Date, // Expected Delivery Date
+    deliveryDate: Date, // Expected Delivery Date
     deliveredQty: Number, // Delivered Quantity
     
     brand: { type: mongoose.Schema.Types.ObjectId, ref: "Brand" }, // Brand (one-to-many) | Linked Brand
@@ -28,7 +29,14 @@ const OrderSchema = new mongoose.Schema({
     defects: [{ type: mongoose.Schema.Types.ObjectId, ref: "Defect" }], // Track defects
     washRecipes: [{ type: mongoose.Schema.Types.ObjectId, ref: "WashRecipe" }], // Linked wash recipes
   },
-  { timestamps: true } // Automatically add createdAt and updatedAt fields
+  { timestamps: true, // Add compound unique index for orderNo + season
+    indexes: [
+        { 
+            fields: { orderNo: 1, season: 1 }, 
+            unique: true,
+            name: 'orderNo_season_unique'
+        }
+    ] } // Automatically add createdAt and updatedAt fields
 );
 
 module.exports = mongoose.model("Order", OrderSchema);

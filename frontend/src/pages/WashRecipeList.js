@@ -70,14 +70,15 @@ const WashRecipeList = () => {
   // Confirm Recipe Deletion
   const handleConfirmDelete = async () => {
     try {
-      await deleteWashRecipe(deleteId);
+      const response = await deleteWashRecipe(deleteId);
       //toast.success("Recipe deleted successfully.");
       //loadRecipes(); // Refresh list
       await loadRecipes(); // Wait for the reload to complete
     } catch (error) {
       // Revert if failed
       loadRecipes();
-      toast.error("Failed to delete recipe.");
+      toast.error(error.response.data.message || "Failed to delete recipe.");
+      // console.error("Failed to delete recipe:", error);
     } finally {
       setIsConfirmOpen(false); // Close confirmation modal
       setDeleteId(null); // Reset delete ID

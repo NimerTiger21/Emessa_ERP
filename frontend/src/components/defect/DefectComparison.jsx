@@ -33,31 +33,34 @@ const DefectComparison = () => {
 
   useEffect(() => {
     fetchComparisonData();
-    console.log("DefectComparison : ", comparisonData);
   }, []);
 
   const fetchComparisonData = async () => {
     try {
       setLoading(true);
       const analytics = await getDefectAnalytics();
+      console.log("analytics : ", analytics);
+      
 
       // Process data for comparison
       const fabricData = analytics.byFabric || [];
       const styleData = analytics.byStyle || [];
-      const compositionData = analytics.byComposition || [];
+      const compositionData = analytics.byComposition || [];      
 
       // Create combined comparison data
       const fabricVsStyleData = fabricData
         .slice(0, 10)
         .map((fabric, index) => ({
           name: fabric.name,
-          fabricDefectRate: parseFloat(fabric.percentage),
+          // fabricDefectRate: parseFloat(fabric.percentage),
+          fabricDefectRate: parseFloat(fabric.percentageOfTotalDefects),
           styleDefectRate: styleData[index]
             ? parseFloat(styleData[index].percentage)
             : 0,
           fabricCount: fabric.count,
           styleName: styleData[index]?.name || "N/A",
         }));
+        console.log("fabricData =>>> : ", fabricVsStyleData);
 
       // Calculate correlation matrix
       const correlationMatrix = [
@@ -85,7 +88,7 @@ const DefectComparison = () => {
       const performanceMetrics = {
         avgFabricDefectRate:
           fabricData.reduce(
-            (sum, item) => sum + parseFloat(item.percentage),
+            (sum, item) => sum + parseFloat(item.percentageOfTotalDefects),
             0
           ) / fabricData.length,
         avgStyleDefectRate:
@@ -99,7 +102,7 @@ const DefectComparison = () => {
             0
           ) / compositionData.length,
         totalDefects: analytics.summary?.totalDefects || 0,
-        topFabricImpact: fabricData[0]?.percentage || 0,
+        topFabricImpact: fabricData[0]?.percentageOfTotalDefects || 0,
         topStyleImpact: styleData[0]?.percentage || 0,
       };
 
@@ -415,7 +418,7 @@ const DefectComparison = () => {
 
         <div className="h-96">
           <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart data={comparisonData.fabricVsStyle}>
+            <ScatterChart data={comparisonData.fabricVsStyle} margin={{ top: 20, right: 20, bottom: 40, left: 40 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="fabricDefectRate"

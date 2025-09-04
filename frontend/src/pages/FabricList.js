@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   fetchFabrics,
   deleteFabric,
   fetchFabricSuppliers,
-} from "../services/masterDataService";
+  downloadTDSFile,
+} from "../services/fabricService";
+// } from "../services/masterDataService";
+import { Card } from "../components/ui/card";
+import { Button } from "../components/ui/button";
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
@@ -11,219 +15,16 @@ import {
   FiEdit,
   FiTrash2,
   FiDownload,
+  FiSearch,
+  FiFileText,
+  FiEye,
   FiPlus,
-  FiGrid,
-  FiList,
-  FiTrendingUp,
-  FiPackage,
-  FiUsers,
-  FiPieChart,
   FiInfo,
-  FiChevronLeft,
-  FiChevronRight,
-  FiChevronsLeft,
-  FiChevronsRight,
+  FiActivity,
   FiX,
 } from "react-icons/fi";
 import Spinner from "../components/Spinner";
 import FabricModal from "../components/FabricModal";
-
-// Enhanced Tooltip Component
-const Tooltip = ({ children, content, position = "top" }) => {
-  const [isVisible, setIsVisible] = useState(false);
-
-  const positionClasses = {
-    top: "bottom-full left-1/2 transform -translate-x-1/2 mb-2",
-    bottom: "top-full left-1/2 transform -translate-x-1/2 mt-2",
-    left: "right-full top-1/2 transform -translate-y-1/2 mr-2",
-    right: "left-full top-1/2 transform -translate-y-1/2 ml-2",
-  };
-
-  return (
-    <div
-      className="relative inline-block"
-      onMouseEnter={() => setIsVisible(true)}
-      onMouseLeave={() => setIsVisible(false)}
-    >
-      {children}
-      {isVisible && (
-        <div
-          className={`absolute z-50 ${positionClasses[position]} animate-in fade-in zoom-in duration-200`}
-        >
-          <div className="bg-gray-900/95 backdrop-blur-sm text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-xl border border-gray-700/50 max-w-xs">
-            {content}
-            <div
-              className={`absolute w-2 h-2 bg-gray-900/95 rotate-45 ${
-                position === "top"
-                  ? "top-full left-1/2 transform -translate-x-1/2 -mt-1"
-                  : position === "bottom"
-                  ? "bottom-full left-1/2 transform -translate-x-1/2 -mb-1"
-                  : position === "left"
-                  ? "left-full top-1/2 transform -translate-y-1/2 -ml-1"
-                  : "right-full top-1/2 transform -translate-y-1/2 -mr-1"
-              }`}
-            ></div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Analytics Card Component
-const AnalyticsCard = ({
-  title,
-  value,
-  icon: Icon,
-  change,
-  color,
-  subtitle,
-}) => (
-  <div
-    className={`bg-gradient-to-br ${color} rounded-2xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105`}
-  >
-    <div className="flex items-center justify-between mb-4">
-      <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
-        <Icon size={24} />
-      </div>
-      {change && (
-        <div
-          className={`flex items-center gap-1 text-sm ${
-            change >= 0 ? "text-green-200" : "text-red-200"
-          }`}
-        >
-          <FiTrendingUp size={16} className={change < 0 ? "rotate-180" : ""} />
-          {Math.abs(change)}%
-        </div>
-      )}
-    </div>
-    <h3 className="text-2xl font-bold mb-1">{value}</h3>
-    <p className="text-white/80 text-sm font-medium">{title}</p>
-    {subtitle && <p className="text-white/60 text-xs mt-1">{subtitle}</p>}
-  </div>
-);
-
-// Enhanced Pagination Component
-const PaginationControls = ({ pagination, onPageChange, compact = false }) => {
-  const { page, totalPages } = pagination;
-
-  const getVisiblePages = () => {
-    const delta = compact ? 1 : 2;
-    const range = [];
-    const rangeWithDots = [];
-
-    for (
-      let i = Math.max(2, page - delta);
-      i <= Math.min(totalPages - 1, page + delta);
-      i++
-    ) {
-      range.push(i);
-    }
-
-    if (page - delta > 2) {
-      rangeWithDots.push(1, "...");
-    } else {
-      rangeWithDots.push(1);
-    }
-
-    rangeWithDots.push(...range);
-
-    if (page + delta < totalPages - 1) {
-      rangeWithDots.push("...", totalPages);
-    } else {
-      rangeWithDots.push(totalPages);
-    }
-
-    return rangeWithDots;
-  };
-
-  if (totalPages <= 1) return null;
-
-  return (
-    <div
-      className={`flex items-center justify-center gap-2 ${
-        compact ? "gap-1" : "gap-2"
-      }`}
-    >
-      <Tooltip content="First page">
-        <button
-          disabled={page === 1}
-          onClick={() => onPageChange(1)}
-          className={`p-2 rounded-lg transition-all duration-300 ${
-            page === 1
-              ? "text-gray-400 cursor-not-allowed"
-              : "text-indigo-600 hover:bg-indigo-50 hover:scale-110"
-          }`}
-        >
-          <FiChevronsLeft size={compact ? 16 : 18} />
-        </button>
-      </Tooltip>
-
-      <Tooltip content="Previous page">
-        <button
-          disabled={page === 1}
-          onClick={() => onPageChange(page - 1)}
-          className={`p-2 rounded-lg transition-all duration-300 ${
-            page === 1
-              ? "text-gray-400 cursor-not-allowed"
-              : "text-indigo-600 hover:bg-indigo-50 hover:scale-110"
-          }`}
-        >
-          <FiChevronLeft size={compact ? 16 : 18} />
-        </button>
-      </Tooltip>
-
-      {getVisiblePages().map((pageNum, index) => (
-        <button
-          key={index}
-          disabled={pageNum === "..."}
-          onClick={() =>
-            typeof pageNum === "number" ? onPageChange(pageNum) : null
-          }
-          className={`px-3 py-2 rounded-lg font-semibold transition-all duration-300 ${
-            compact ? "text-sm px-2 py-1" : ""
-          } ${
-            pageNum === page
-              ? "bg-indigo-500 text-white shadow-lg"
-              : pageNum === "..."
-              ? "text-gray-400 cursor-default"
-              : "text-indigo-600 hover:bg-indigo-50 hover:scale-110"
-          }`}
-        >
-          {pageNum}
-        </button>
-      ))}
-
-      <Tooltip content="Next page">
-        <button
-          disabled={page === totalPages}
-          onClick={() => onPageChange(page + 1)}
-          className={`p-2 rounded-lg transition-all duration-300 ${
-            page === totalPages
-              ? "text-gray-400 cursor-not-allowed"
-              : "text-indigo-600 hover:bg-indigo-50 hover:scale-110"
-          }`}
-        >
-          <FiChevronRight size={compact ? 16 : 18} />
-        </button>
-      </Tooltip>
-
-      <Tooltip content="Last page">
-        <button
-          disabled={page === totalPages}
-          onClick={() => onPageChange(totalPages)}
-          className={`p-2 rounded-lg transition-all duration-300 ${
-            page === totalPages
-              ? "text-gray-400 cursor-not-allowed"
-              : "text-indigo-600 hover:bg-indigo-50 hover:scale-110"
-          }`}
-        >
-          <FiChevronsRight size={compact ? 16 : 18} />
-        </button>
-      </Tooltip>
-    </div>
-  );
-};
 
 const FabricList = () => {
   const [editFabric, setEditFabric] = useState(null);
@@ -231,30 +32,21 @@ const FabricList = () => {
   const [filteredFabrics, setFilteredFabrics] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [selectedSupplier, setSelectedSupplier] = useState("");
-  const [viewMode, setViewMode] = useState("table");
-  const [showAnalytics, setShowAnalytics] = useState(false);
-
   const [isLoading, setIsLoading] = useState(true);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState("grid"); // "grid" or "table"
+  const [selectedFabric, setSelectedFabric] = useState(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const [sort, setSort] = useState({ field: "name", order: "desc" });
   const [search, setSearch] = useState("");
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: viewMode === "grid" ? 12 : 70,
+    limit: 12,
     totalPages: 1,
   });
-
-  // Update pagination limit when view mode changes
-  useEffect(() => {
-    setPagination((prev) => ({
-      ...prev,
-      limit: viewMode === "grid" ? 12 : 7,
-      page: 1,
-    }));
-  }, [viewMode]);
 
   useEffect(() => {
     const loadFabrics = async () => {
@@ -287,40 +79,6 @@ const FabricList = () => {
     setPagination((prev) => ({ ...prev, page: 1 }));
   }, [selectedSupplier, search, sort]);
 
-  // Calculate analytics
-  const analytics = {
-    totalFabrics: fabrics.length,
-    totalSuppliers: suppliers.length,
-    averageCompositions:
-      fabrics.length > 0
-        ? (
-            fabrics.reduce(
-              (acc, fabric) => acc + (fabric.fabricCompositions?.length || 0),
-              0
-            ) / fabrics.length
-          ).toFixed(1)
-        : 0,
-    topColors: fabrics.reduce((acc, fabric) => {
-      const color = fabric.color || "Unknown";
-      acc[color] = (acc[color] || 0) + 1;
-      return acc;
-    }, {}),
-    supplierDistribution: suppliers
-      .map((supplier) => ({
-        name: supplier.name,
-        count: fabrics.filter((fabric) => fabric.supplier?._id === supplier._id)
-          .length,
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5),
-    recentlyAdded: fabrics.filter((fabric) => {
-      const createdDate = new Date(fabric.createdAt);
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      return createdDate > weekAgo;
-    }).length,
-  };
-
   const exportToExcel = () => {
     if (!fabrics || fabrics.length === 0) {
       toast.warning("No data available to export.");
@@ -332,15 +90,13 @@ const FabricList = () => {
       Code: fabric.code,
       Color: fabric.color,
       Supplier: fabric.supplier?.name || "N/A",
-      Composition:
-        fabric.fabricCompositions
-          ?.map(
-            (fc) =>
-              `${fc.value}% ${
-                fc.compositionItem?.name || "Unknown"
-              } abbrPrefix: ${fc.compositionItem.abbrPrefix}`
-          )
-          .join(", ") || "N/A",
+      Composition: fabric.compositionString || "N/A",
+      "Tensile Warp (g)": fabric.technicalSpecs?.tensileWarp || "N/A",
+      "Tensile Weft (g)": fabric.technicalSpecs?.tensileWeft || "N/A",
+      "Tear Warp (g)": fabric.technicalSpecs?.tearWarp || "N/A",
+      "Tear Weft (g)": fabric.technicalSpecs?.tearWeft || "N/A",
+      "Weight (oz/y²)": fabric.technicalSpecs?.weight || "N/A",
+      "Elasticity (%)": fabric.technicalSpecs?.elasticity || "N/A",
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData);
@@ -356,7 +112,7 @@ const FabricList = () => {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
 
-    saveAs(dataBlob, "Fabrics.xlsx");
+    saveAs(dataBlob, "Enhanced_Fabrics.xlsx");
     toast.success("Fabrics exported successfully to Excel");
   };
 
@@ -371,15 +127,25 @@ const FabricList = () => {
     setPagination((prev) => ({ ...prev, page: newPage }));
   };
 
-  useEffect(() => {
-    if (selectedSupplier) {
-      setFilteredFabrics(
-        fabrics.filter((fabric) => fabric.supplier?._id === selectedSupplier)
-      );
-    } else {
-      setFilteredFabrics(fabrics);
-    }
-  }, [selectedSupplier, fabrics]);
+  /**
+   * Benefits:
+              Single source of truth (fabrics)
+              Automatic filtering
+              No sync issues
+              More performant (memoized)
+   */
+  // Remove filteredFabrics state and derive it directly
+  // const filteredFabrics = useMemo(() => {
+  //   return fabrics.filter((fabric) => {
+  //     const matchesSupplier =
+  //       !selectedSupplier || fabric.supplier?._id === selectedSupplier;
+  //     const matchesSearch =
+  //       !search ||
+  //       fabric.name.toLowerCase().includes(search.toLowerCase()) ||
+  //       fabric.code?.toLowerCase().includes(search.toLowerCase());
+  //     return matchesSupplier && matchesSearch;
+  //   });
+  // }, [fabrics, selectedSupplier, search]);
 
   const updateFabricList = async (updatedFabric) => {
     if (!updatedFabric || !updatedFabric._id) {
@@ -392,13 +158,16 @@ const FabricList = () => {
         (fabric) => fabric._id === updatedFabric._id
       );
 
-      if (fabricExists) {
-        return prevFabrics.map((fabric) =>
-          fabric._id === updatedFabric._id ? updatedFabric : fabric
-        );
-      } else {
-        return [...prevFabrics, updatedFabric];
-      }
+      const updatedList = fabricExists
+        ? prevFabrics.map((fabric) =>
+            fabric._id === updatedFabric._id ? updatedFabric : fabric
+          )
+        : [...prevFabrics, updatedFabric];
+
+      // Also update filteredFabrics
+      setFilteredFabrics(updatedList);
+
+      return updatedList;
     });
   };
 
@@ -411,9 +180,12 @@ const FabricList = () => {
     try {
       await deleteFabric(deleteId);
       setFabrics(fabrics.filter((fabric) => fabric._id !== deleteId));
+      setFilteredFabrics((prev) =>
+        prev.filter((fabric) => fabric._id !== deleteId)
+      );
       toast.success("Fabric deleted successfully");
     } catch (error) {
-      alert("Error deleting fabric");
+      // toast.error("Error deleting fabric");
     } finally {
       setIsConfirmOpen(false);
     }
@@ -432,736 +204,647 @@ const FabricList = () => {
   const openModal = () => setIsModalOpen(true);
   const closeConfirm = () => setIsConfirmOpen(false);
 
+  const openDetailModal = (fabric) => {
+    setSelectedFabric(fabric);
+    setIsDetailModalOpen(true);
+  };
+
+  const closeDetailModal = () => {
+    setSelectedFabric(null);
+    setIsDetailModalOpen(false);
+  };
+
+  const downloadTDS = async (fabric) => {
+    if (fabric.tdsFile && fabric.tdsFile.fileName) {
+      try {
+        // Use the service function to download via API
+        await downloadTDSFile(fabric._id, fabric.tdsFile.fileName);
+        toast.success("TDS download started");
+      } catch (error) {
+        console.error("Download error:", error);
+        toast.error("Failed to download TDS file");
+      }
+    } else {
+      toast.warning("No TDS file available for this fabric");
+    }
+  };
+
   if (isLoading) {
     return <Spinner />;
   }
 
-  const GridView = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredFabrics?.map((fabric, index) => (
-          <div
-            key={fabric._id}
-            className="group relative bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg hover:shadow-2xl border border-white/20 transition-all duration-500 hover:scale-105 hover:-translate-y-2"
-            style={{
-              background: `linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,250,252,0.8) 100%)`,
-              animation: `fadeInUp 0.6s ease-out ${index * 0.1}s both`,
-            }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-pink-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-            <div className="relative z-10">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <Tooltip content={`Fabric: ${fabric.name}`}>
-                    <h3 className="font-bold text-lg text-gray-800 mb-1 group-hover:text-indigo-600 transition-colors duration-300 truncate">
-                      {fabric.name}
-                    </h3>
-                  </Tooltip>
-                  <Tooltip content={`Code: ${fabric.code}`}>
-                    <p className="text-sm text-gray-500 font-mono">
-                      {fabric.code}
-                    </p>
-                  </Tooltip>
-                </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-4 group-hover:translate-x-0">
-                  <Tooltip content="Edit fabric">
-                    <button
-                      onClick={() => openEditModal(fabric)}
-                      className="p-2 bg-blue-500/90 hover:bg-blue-600 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
-                    >
-                      <FiEdit size={14} />
-                    </button>
-                  </Tooltip>
-                  <Tooltip content="Delete fabric">
-                    <button
-                      onClick={() => openDeleteConfirm(fabric._id)}
-                      className="p-2 bg-red-500/90 hover:bg-red-600 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
-                    >
-                      <FiTrash2 size={14} />
-                    </button>
-                  </Tooltip>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Tooltip
-                    content={`Color: ${fabric.color || "No color specified"}`}
-                  >
-                    <div
-                      className="w-6 h-6 rounded-full border-2 border-white shadow-lg cursor-help"
-                      style={{ backgroundColor: fabric.color || "#gray" }}
-                    ></div>
-                  </Tooltip>
-                  <span className="text-sm text-gray-600 capitalize">
-                    {fabric.color}
-                  </span>
-                </div>
-
-                <div className="bg-gray-50/80 rounded-lg p-3 backdrop-blur-sm">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">
-                    Supplier
-                  </p>
-                  <Tooltip
-                    content={
-                      fabric.supplier?.name
-                        ? `Supplier: ${fabric.supplier.name}`
-                        : "No supplier assigned"
-                    }
-                  >
-                    <p className="text-sm text-gray-800 font-medium truncate">
-                      {fabric.supplier?.name || "N/A"}
-                    </p>
-                  </Tooltip>
-                </div>
-
-                <div className="bg-gradient-to-r from-indigo-50/80 to-purple-50/80 rounded-lg p-3 backdrop-blur-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">
-                      Composition
-                    </p>
-                    <Tooltip content="Fabric composition details">
-                      <FiInfo size={12} className="text-gray-400" />
-                    </Tooltip>
-                  </div>
-                  <p className="text-sm text-gray-700 leading-relaxed line-clamp-2">
-                    {fabric.compositionString?.length > 0
-                      ? fabric.compositionString
-                      : "No Composition"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Grid Pagination */}
-      <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-sm text-gray-600">
-            Showing{" "}
-            <strong>{(pagination.page - 1) * pagination.limit + 1}</strong> to{" "}
-            <strong>
-              {Math.min(
-                pagination.page * pagination.limit,
-                filteredFabrics.length
-              )}
-            </strong>{" "}
-            of <strong>{filteredFabrics.length}</strong> fabrics
-          </div>
-          <PaginationControls
-            pagination={pagination}
-            onPageChange={handlePageChange}
-          />
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-100/40 p-6">
-      <style jsx>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes pulse {
-          0%,
-          100% {
-            transform: scale(1);
-          }
-          50% {
-            transform: scale(1.05);
-          }
-        }
-
-        .search-glow:focus {
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1),
-            0 0 20px rgba(99, 102, 241, 0.2);
-        }
-
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-      `}</style>
-
-      {/* Enhanced Header */}
-      <div className="mb-8">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Fabric Collection
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Fabric Management
               </h1>
-              <div className="absolute -bottom-1 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full opacity-60"></div>
-            </div>
-            <div className="bg-white/60 backdrop-blur-lg rounded-full px-4 py-2 border border-white/20 shadow-lg">
-              <span className="text-sm font-semibold text-gray-600">
-                {filteredFabrics.length} items
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Analytics Toggle */}
-            <Tooltip
-              content={
-                showAnalytics ? "Hide analytics" : "Show analytics dashboard"
-              }
-            >
-              <button
-                onClick={() => setShowAnalytics(!showAnalytics)}
-                className={`group p-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 ${
-                  showAnalytics
-                    ? "bg-gradient-to-r from-purple-500 to-indigo-600 text-white"
-                    : "bg-white/80 backdrop-blur-lg text-gray-600 hover:bg-gray-100/80 border border-white/20"
-                }`}
-              >
-                {/* <FiBarChart3 size={18} /> */}
-              </button>
-            </Tooltip>
-
-            {/* View Mode Toggle */}
-            <div className="bg-white/80 backdrop-blur-lg rounded-xl p-1 border border-white/20 shadow-lg">
-              <Tooltip content="Table view">
-                <button
-                  onClick={() => setViewMode("table")}
-                  className={`p-2 rounded-lg transition-all duration-300 ${
-                    viewMode === "table"
-                      ? "bg-indigo-500 text-white shadow-lg"
-                      : "text-gray-600 hover:bg-gray-100/80"
-                  }`}
-                >
-                  <FiList size={18} />
-                </button>
-              </Tooltip>
-              <Tooltip content="Grid view">
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`p-2 rounded-lg transition-all duration-300 ${
-                    viewMode === "grid"
-                      ? "bg-indigo-500 text-white shadow-lg"
-                      : "text-gray-600 hover:bg-gray-100/80"
-                  }`}
-                >
-                  <FiGrid size={18} />
-                </button>
-              </Tooltip>
+              <p className="text-sm text-gray-600 mt-1">
+                Manage your fabric inventory with technical specifications
+              </p>
             </div>
 
-            {/* Export Button */}
-            <Tooltip content="Export to Excel">
-              <button
+            <div className="flex items-center gap-3">
+              <Button
                 onClick={exportToExcel}
-                className="group bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2"
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
               >
-                <FiDownload className="group-hover:animate-bounce" size={18} />
+                <FiDownload className="w-4 h-4" />
                 Export Excel
-              </button>
-            </Tooltip>
+              </Button>
 
-            {/* Create Button */}
-            <Tooltip content="Add new fabric">
-              <button
+              <Button
                 onClick={openModal}
-                className="group bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
               >
-                <FiPlus
-                  className="group-hover:rotate-90 transition-transform duration-300"
-                  size={18}
-                />
-                New Fabric
-              </button>
-            </Tooltip>
+                <FiPlus className="w-4 h-4" />
+                Add Fabric
+              </Button>
+            </div>
           </div>
         </div>
-
-        {/* Analytics Dashboard */}
-        {showAnalytics && (
-          <div className="mt-8 space-y-6 animate-in fade-in slide-in-from-top duration-500">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Business Analytics
-              </h2>
-              <button
-                onClick={() => setShowAnalytics(false)}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-lg transition-all duration-300"
-              >
-                <FiX size={20} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <AnalyticsCard
-                title="Total Fabrics"
-                value={analytics.totalFabrics}
-                icon={FiPackage}
-                change={
-                  analytics.recentlyAdded > 0
-                    ? Math.round(
-                        (analytics.recentlyAdded / analytics.totalFabrics) * 100
-                      )
-                    : 0
-                }
-                color="from-blue-500 to-indigo-600"
-                subtitle={`${analytics.recentlyAdded} added this week`}
-              />
-              <AnalyticsCard
-                title="Active Suppliers"
-                value={analytics.totalSuppliers}
-                icon={FiUsers}
-                color="from-emerald-500 to-teal-600"
-                subtitle="Supplier partners"
-              />
-              <AnalyticsCard
-                title="Avg Compositions"
-                value={analytics.averageCompositions}
-                icon={FiPieChart}
-                color="from-purple-500 to-pink-600"
-                subtitle="Per fabric"
-              />
-              <AnalyticsCard
-                title="Color Varieties"
-                value={Object.keys(analytics.topColors).length}
-                icon={FiTrendingUp}
-                color="from-orange-500 to-red-600"
-                subtitle="Unique colors"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Top Colors */}
-              <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <FiPieChart className="text-indigo-600" />
-                  Popular Colors
-                </h3>
-                <div className="space-y-3">
-                  {Object.entries(analytics.topColors)
-                    .sort(([, a], [, b]) => b - a)
-                    .slice(0, 5)
-                    .map(([color, count]) => (
-                      <div
-                        key={color}
-                        className="flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-4 h-4 rounded-full border-2 border-white shadow-md"
-                            style={{
-                              backgroundColor:
-                                color === "Unknown" ? "#gray" : color,
-                            }}
-                          ></div>
-                          <span className="text-sm font-medium text-gray-700 capitalize">
-                            {color}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md text-xs font-semibold">
-                            {count}
-                          </div>
-                          <div className="w-16 h-2 bg-indigo-200 rounded-full">
-                            <div
-                              className="h-full bg-indigo-500 rounded-full"
-                              style={{
-                                width: `${(count / fabrics.length) * 100}%`,
-                              }}
-                            ></div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-              {/* Supplier Distribution */}
-              <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <FiUsers className="text-indigo-600" />
-                  Supplier Distribution
-                </h3>
-                <div className="space-y-3">
-                  {analytics.supplierDistribution.map((supplier) => (
-                    <div
-                      key={supplier.name}
-                      className="flex items-center justify-between"
-                    >
-                      <span className="text-sm font-medium text-gray-700">
-                        {supplier.name}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <div className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md text-xs font-semibold">
-                          {supplier.count}
-                        </div>
-                        <div className="w-16 h-2 bg-indigo-200 rounded-full">
-                          <div
-                            className="h-full bg-indigo-500 rounded-full"
-                            style={{
-                              width: `${
-                                (supplier.count / fabrics.length) * 100
-                              }%`,
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {/* Recently Added Fabrics */}
-              <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <FiTrendingUp className="text-indigo-600" />
-                  Recently Added Fabrics
-                </h3>
-                <div className="space-y-3">
-                  {fabrics
-                    .filter((fabric) => {
-                      const createdDate = new Date(fabric.createdAt);
-                      const weekAgo = new Date();
-                      weekAgo.setDate(weekAgo.getDate() - 7);
-                      return createdDate > weekAgo;
-                    })
-                    .slice(0, 5)
-                    .map((fabric) => (
-                      <div
-                        key={fabric._id}
-                        className="flex items-center justify-between"
-                      >
-                        <span className="text-sm font-medium text-gray-700">
-                          {fabric.name}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {new Date(fabric.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-              {/* Fabric Composition Breakdown */}
-              <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <FiInfo className="text-indigo-600" />
-                  Fabric Composition Breakdown
-                </h3>
-                <div className="space-y-3">
-                  {fabrics.map((fabric) => (
-                    <div
-                      key={fabric._id}
-                      className="flex items-center justify-between"
-                    >
-                      <span className="text-sm font-medium text-gray-700">
-                        {fabric.name}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {fabric.fabricCompositions?.length > 0
-                          ? fabric.fabricCompositions
-                              .map(
-                                (fc) =>
-                                  `${fc.value}% ${
-                                    fc.compositionItem?.name || "Unknown"
-                                  }`
-                              )
-                              .join(", ")
-                          : "No Composition"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
-      {/* Main Content */}
-      <div className="mt-8">
-        {viewMode === "grid" ? (
-          <GridView />
-        ) : (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  Fabrics List
-                </h2>
-                <span className="text-sm text-gray-600">
-                  {filteredFabrics.length} items
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
+
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        {/* Filters and Search */}
+        <Card className="p-6 mb-6 bg-white shadow-sm border border-gray-200">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
                   type="text"
-                  placeholder="Search fabrics..."
+                  placeholder="Search fabrics by name, code, or color..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="search-glow px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300 w-full max-w-xs"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
-                <select
-                  value={selectedSupplier}
-                  onChange={(e) => setSelectedSupplier(e.target.value)}
-                  className="px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300 w-full max-w-xs"
-                >
-                  <option value="">All Suppliers</option>
-                  {suppliers.map((supplier) => (
-                    <option key={supplier._id} value={supplier._id}>
-                      {supplier.name}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 
-            <table className="min-w-full bg-white/80 backdrop-blur-lg rounded-xl shadow-lg border border-white/20">
-              <thead>
-                <tr className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white">
-                  <th
-                    onClick={() => handleSort("name")}
-                    className={`px-6 py-3 cursor-pointer ${
-                      sort.field === "name"
-                        ? sort.order === "asc"
-                          ? "bg-indigo-600"
-                          : "bg-indigo-700"
-                        : ""
-                    }`}
-                  >
-                    Fabric Name
-                    {sort.field === "name" && (
-                      <span
-                        className={`ml-1 ${
-                          sort.order === "asc"
-                            ? "text-xs"
-                            : "text-xs rotate-180"
-                        }`}
-                      >
-                        ▲
-                      </span>
-                    )}
-                  </th>
-                  <th
-                    onClick={() => handleSort("code")}
-                    className={`px-6 py-3 cursor-pointer ${
-                      sort.field === "code"
-                        ? sort.order === "asc"
-                          ? "bg-indigo-600"
-                          : "bg-indigo-700"
-                        : ""
-                    }`}
-                  >
-                    Code
-                    {sort.field === "code" && (
-                      <span
-                        className={`ml-1 ${
-                          sort.order === "asc"
-                            ? "text-xs"
-                            : "text-xs rotate-180"
-                        }`}
-                      >
-                        ▲
-                      </span>
-                    )}
-                  </th>
-                  <th
-                    onClick={() => handleSort("color")}
-                    className={`px-6 py-3 cursor-pointer ${
-                      sort.field === "color"
-                        ? sort.order === "asc"
-                          ? "bg-indigo-600"
-                          : "bg-indigo-700"
-                        : ""
-                    }`}
-                  >
-                    Color
-                    {sort.field === "color" && (
-                      <span
-                        className={`ml-1 ${
-                          sort.order === "asc"
-                            ? "text-xs"
-                            : "text-xs rotate-180"
-                        }`}
-                      >
-                        ▲
-                      </span>
-                    )}
-                  </th>
-                  <th
-                    onClick={() => handleSort("supplier")}
-                    className={`px-6 py-3 cursor-pointer ${
-                      sort.field === "supplier"
-                        ? sort.order === "asc"
-                          ? "bg-indigo-600"
-                          : "bg-indigo-700"
-                        : ""
-                    }`}
-                  >
-                    Supplier
-                    {sort.field === "supplier" && (
-                      <span
-                        className={`ml-1 ${
-                          sort.order === "asc"
-                            ? "text-xs"
-                            : "text-xs rotate-180"
-                        }`}
-                      >
-                        ▲
-                      </span>
-                    )}
-                  </th>
-                  <th
-                    onClick={() => handleSort("composition")}
-                    className={`px-6 py-3 cursor-pointer ${
-                      sort.field === "composition"
-                        ? sort.order === "asc"
-                          ? "bg-indigo-600"
-                          : "bg-indigo-700"
-                        : ""
-                    }`}
-                  >
-                    Composition
-                    {sort.field === "composition" && (
-                      <span
-                        className={`ml-1 ${
-                          sort.order === "asc"
-                            ? "text-xs"
-                            : "text-xs rotate-180"
-                        }`}
-                      >
-                        ▲
-                      </span>
-                    )}
-                  </th>
-                  <th className="px-6 py-3 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredFabrics.map((fabric) => (
-                  <tr
-                    key={fabric._id}
-                    className="hover:bg-gray-50 transition-colors duration-300"
-                  >
-                    <td className="px-6 py-4">{fabric.name}</td>
-                    <td className="px-6 py-4">{fabric.code}</td>
-                    <td className="px-6 py-4">
-                      <div
-                        className="w-6 h-6 rounded-full border-2 border-white shadow-lg"
-                        style={{ backgroundColor: fabric.color || "#gray" }}
-                      ></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {fabric.supplier?.name || "N/A"}
-                    </td>
-                    <td className="px-6 py-4">
-                      {fabric.fabricCompositions?.length > 0
-                        ? fabric.fabricCompositions
-                            .map(
-                              (fc) =>
-                                `${fc.value}% ${
-                                  fc.compositionItem?.name || "Unknown"
-                                }`
-                            )
-                            .join(", ")
-                        : "No Composition"}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center gap-2">
-                        <Tooltip content="Edit fabric">
-                          <button
-                            onClick={() => openEditModal(fabric)}
-                            className="p-2 bg-blue-500/90 hover:bg-blue-600 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
-                          >
-                            <FiEdit size={14} />
-                          </button>
-                        </Tooltip>
-                        <Tooltip content="Delete fabric">
-                          <button
-                            onClick={() => openDeleteConfirm(fabric._id)}
-                            className="p-2 bg-red-500/90 hover:bg-red-600 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
-                          >
-                            <FiTrash2 size={14} />
-                          </button>
-                        </Tooltip>
-                      </div>
-                    </td>
-                  </tr>
+            <div className="flex gap-3">
+              <select
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                value={selectedSupplier}
+                onChange={(e) => setSelectedSupplier(e.target.value)}
+              >
+                <option value="">All Suppliers</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier._id} value={supplier._id}>
+                    {supplier.name}
+                  </option>
                 ))}
-              </tbody>
-            </table>
-            {/* Table Pagination */}
-            <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg mt-6">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-sm text-gray-600">
-                  Showing{" "}
-                  <strong>
-                    {(pagination.page - 1) * pagination.limit + 1}
-                  </strong>{" "}
-                  to{" "}
-                  <strong>
-                    {Math.min(
-                      pagination.page * pagination.limit,
-                      filteredFabrics.length
-                    )}
-                  </strong>{" "}
-                  of <strong>{filteredFabrics.length}</strong> fabrics
-                </div>
-                <PaginationControls
-                  pagination={pagination}
-                  onPageChange={handlePageChange}
-                />
-              </div>
+              </select>
+
+              <Button
+                onClick={() =>
+                  setViewMode(viewMode === "grid" ? "table" : "grid")
+                }
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg"
+              >
+                {viewMode === "grid" ? "Table View" : "Grid View"}
+              </Button>
             </div>
           </div>
+        </Card>
+
+        {/* Content */}
+        {viewMode === "grid" ? (
+          /* Grid View */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredFabrics?.map((fabric) => (
+              <Card
+                key={fabric._id}
+                className="bg-white shadow-lg hover:shadow-xl transition-shadow duration-300 border border-gray-200 rounded-xl overflow-hidden flex flex-col justify-between"
+              >
+                {/* Accent Bar */}
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 h-1"></div>
+
+                {/* Main Content */}
+                <div className="p-6 flex flex-col gap-4 flex-grow">
+                  {/* Fabric Name & Code */}
+                  <div>
+                    <h3
+                      className="font-bold text-lg text-gray-900 break-words"
+                      title={fabric.name}
+                    >
+                      {fabric.name}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {fabric.code || "No Code"}
+                    </p>
+                  </div>
+
+                  {/* Metadata Grid */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    <div>
+                      <span className="text-xs font-medium text-gray-500">
+                        Color:
+                      </span>
+                      <div className="text-gray-900">
+                        {fabric.color || "N/A"}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs font-medium text-gray-500">
+                        Supplier:
+                      </span>
+                      <div className="text-gray-900 break-words">
+                        {fabric.supplier?.name || "N/A"}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-xs font-medium text-gray-500">
+                        Composition:
+                      </span>
+                      <p className="text-gray-900 mt-1 line-clamp-2">
+                        {fabric.compositionString || "No Composition"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Technical Specs */}
+                  {fabric.technicalSpecs && (
+                    <div className="bg-gray-50 p-3 rounded-lg text-xs grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-gray-500">Weight:</span>
+                        <span className="ml-1 font-medium">
+                          {fabric.technicalSpecs.weight || "N/A"} oz/y²
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Elasticity:</span>
+                        <span className="ml-1 font-medium">
+                          {fabric.technicalSpecs.elasticity || "N/A"}%
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TDS File */}
+                  {fabric.tdsFile && (
+                    <div className="flex items-center justify-between bg-blue-50 p-2 rounded-lg text-xs">
+                      <div className="flex items-center gap-2 text-blue-800 font-medium">
+                        <FiFileText className="w-4 h-4 text-blue-600" />
+                        TDS Available
+                      </div>
+                      <Button
+                        onClick={() => downloadTDS(fabric)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded"
+                      >
+                        <FiDownload className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Buttons Row */}
+                <div className="px-6 py-3 border-t flex justify-end gap-2 bg-gray-50">
+                  <Button
+                    onClick={() => openDetailModal(fabric)}
+                    className="bg-blue-100 hover:bg-blue-200 text-blue-600 p-2 rounded-full"
+                    title="View Details"
+                  >
+                    <FiEye className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    onClick={() => openEditModal(fabric)}
+                    className="bg-yellow-100 hover:bg-yellow-200 text-yellow-600 p-2 rounded-full"
+                    title="Edit"
+                  >
+                    <FiEdit className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    onClick={() => openDeleteConfirm(fabric._id)}
+                    className="bg-red-100 hover:bg-red-200 text-red-600 p-2 rounded-full"
+                    title="Delete"
+                  >
+                    <FiTrash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          /* Table View */
+          <Card className="bg-white shadow-lg border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th
+                      onClick={() => handleSort("name")}
+                      className="px-6 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                    >
+                      Fabric Name{" "}
+                      {sort.field === "name" &&
+                        (sort.order === "asc" ? "↑" : "↓")}
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">
+                      Code
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">
+                      Color
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">
+                      Supplier
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">
+                      Composition
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">
+                      Tech Specs
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">
+                      TDS
+                    </th>
+                    <th className="px-6 py-4 text-center text-sm font-medium text-gray-700">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredFabrics?.map((fabric) => (
+                    <tr key={fabric._id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {fabric.name}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {fabric.code || "N/A"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {fabric.color || "N/A"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {fabric.supplier?.name || "N/A"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700 max-w-48 truncate">
+                        {fabric.compositionString || "No Composition"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {fabric.technicalSpecs?.weight ? (
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                            {fabric.technicalSpecs.weight} oz/y²
+                          </span>
+                        ) : (
+                          "N/A"
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {fabric.tdsFile ? (
+                          <Button
+                            onClick={() => downloadTDS(fabric)}
+                            className="bg-green-100 hover:bg-green-200 text-green-700 p-1 rounded"
+                          >
+                            <FiDownload className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <span className="text-gray-400">No TDS</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex justify-center gap-2">
+                          <Button
+                            onClick={() => openDetailModal(fabric)}
+                            className="bg-blue-100 hover:bg-blue-200 text-blue-600 p-2 rounded"
+                          >
+                            <FiEye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={() => openEditModal(fabric)}
+                            className="bg-yellow-100 hover:bg-yellow-200 text-yellow-600 p-2 rounded"
+                          >
+                            <FiEdit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={() => openDeleteConfirm(fabric._id)}
+                            className="bg-red-100 hover:bg-red-200 text-red-600 p-2 rounded"
+                          >
+                            <FiTrash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         )}
+
+        {/* Pagination */}
+        <div className="mt-6 flex justify-between items-center">
+          <div className="text-sm text-gray-600">
+            Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
+            {Math.min(pagination.page * pagination.limit, fabrics.length)} of{" "}
+            {fabrics.length} fabrics
+          </div>
+          <div className="flex gap-2">
+            <Button
+              disabled={pagination.page === 1}
+              onClick={() => handlePageChange(pagination.page - 1)}
+              className={`px-4 py-2 rounded-lg ${
+                pagination.page === 1
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-white hover:bg-gray-50 text-gray-700 border border-gray-300"
+              }`}
+            >
+              Previous
+            </Button>
+            <span className="px-4 py-2 bg-indigo-600 text-white rounded-lg">
+              {pagination.page} of {pagination.totalPages}
+            </span>
+            <Button
+              disabled={pagination.page === pagination.totalPages}
+              onClick={() => handlePageChange(pagination.page + 1)}
+              className={`px-4 py-2 rounded-lg ${
+                pagination.page === pagination.totalPages
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-white hover:bg-gray-50 text-gray-700 border border-gray-300"
+              }`}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </div>
-      {/* Create / Update Order Modal */}
+
+      {/* Modals */}
       {isModalOpen && (
         <FabricModal
           closeModal={closeModal}
-          //   onOrderCreated={handleOrderCreated}
           editFabric={editFabric}
           refreshFabricList={updateFabricList}
-          //   updateOrderInList={updateOrderInList}
         />
       )}
 
-      {/* �� Confirmation Modal */}
-      <div
-        className={`fixed bottom-0 right-0 z-50 ${
-          isConfirmOpen ? "block" : "hidden"
-        }`}
-      >
-        <div className="p-4 bg-white shadow-lg rounded-lg max-w-sm">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">
-            Delete Fabric
-          </h2>
-          <p>Are you sure you want to delete this fabric?</p>
-          <div className="flex justify-end gap-4">
-            <button
-              className="bg-gray-300 hover:bg-gray-400 text-white px-4 py-2 rounded"
-              onClick={closeConfirm}
-            >
-              Cancel
-            </button>
-            <button
-              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
-              onClick={handleConfirmDelete}
-            >
-              Delete
-            </button>
-          </div>
+      {/* Detail Modal */}
+      {isDetailModalOpen && selectedFabric && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <Card className="w-full max-w-4xl max-h-[90vh] bg-white shadow-2xl rounded-xl overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">
+                  Fabric Details - {selectedFabric.name}
+                </h2>
+                <Button
+                  onClick={closeDetailModal}
+                  className="text-2xl hover:text-gray-200 transition-colors bg-transparent border-none"
+                >
+                  <FiX />
+                </Button>
+              </div>
+            </div>
+
+            <div className="max-h-[70vh] overflow-y-auto p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Basic Information */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-100">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <FiInfo className="text-blue-600" />
+                    Basic Information
+                  </h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">
+                        Name:
+                      </label>
+                      <p className="text-gray-900 font-medium">
+                        {selectedFabric.name}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">
+                        Code:
+                      </label>
+                      <p className="text-gray-900">
+                        {selectedFabric.code || "No Code"}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">
+                        Color:
+                      </label>
+                      <p className="text-gray-900">
+                        {selectedFabric.color || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">
+                        Supplier:
+                      </label>
+                      <p className="text-gray-900">
+                        {selectedFabric.supplier?.name || "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Composition */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-lg border border-purple-100">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <FiActivity className="text-purple-600" />
+                    Composition
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedFabric.fabricCompositions?.map((comp, index) => (
+                      <div
+                        key={index}
+                        className="flex justify-between bg-white p-2 rounded border"
+                      >
+                        <span className="text-gray-700 flex items-baseline gap-1">
+                          <strong className="text-purple-700">
+                            {comp.compositionItem?.abbrPrefix}
+                          </strong>
+                          <sub className="text-xs text-gray-500">
+                            {comp.compositionItem?.name}
+                          </sub>
+                        </span>
+                        <span className="font-medium text-purple-600">
+                          {comp.value}%
+                        </span>
+                      </div>
+                    )) || <p className="text-gray-500">No composition data</p>}
+                  </div>
+                </div>
+
+                {/* Technical Specifications */}
+                <div className="lg:col-span-2 bg-gradient-to-r from-orange-50 to-red-50 p-6 rounded-lg border border-orange-100">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <FiFileText className="text-orange-600" />
+                    Technical Specifications
+                  </h3>
+                  {selectedFabric.technicalSpecs ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="bg-white p-4 rounded-lg border">
+                        <label className="text-sm font-medium text-gray-600">
+                          Tensile Warp
+                        </label>
+                        <p className="text-xl font-bold text-gray-900">
+                          {selectedFabric.technicalSpecs.tensileWarp || "N/A"}
+                          <span className="text-sm font-normal text-gray-500 ml-1">
+                            gf
+                          </span>
+                        </p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border">
+                        <label className="text-sm font-medium text-gray-600">
+                          Tensile Weft
+                        </label>
+                        <p className="text-xl font-bold text-gray-900">
+                          {selectedFabric.technicalSpecs.tensileWeft || "N/A"}
+                          <span className="text-sm font-normal text-gray-500 ml-1">
+                            gf
+                          </span>
+                        </p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border">
+                        <label className="text-sm font-medium text-gray-600">
+                          Tear Warp
+                        </label>
+                        <p className="text-xl font-bold text-gray-900">
+                          {selectedFabric.technicalSpecs.tearWarp || "N/A"}
+                          <span className="text-sm font-normal text-gray-500 ml-1">
+                            gf
+                          </span>
+                        </p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border">
+                        <label className="text-sm font-medium text-gray-600">
+                          Tear Weft
+                        </label>
+                        <p className="text-xl font-bold text-gray-900">
+                          {selectedFabric.technicalSpecs.tearWeft || "N/A"}
+                          <span className="text-sm font-normal text-gray-500 ml-1">
+                            gf
+                          </span>
+                        </p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border">
+                        <label className="text-sm font-medium text-gray-600">
+                          Weight
+                        </label>
+                        <p className="text-xl font-bold text-gray-900">
+                          {selectedFabric.technicalSpecs.weight || "N/A"}
+                          <span className="text-sm font-normal text-gray-500 ml-1">
+                            oz/y²
+                          </span>
+                        </p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border">
+                        <label className="text-sm font-medium text-gray-600">
+                          Elasticity
+                        </label>
+                        <p className="text-xl font-bold text-gray-900">
+                          {selectedFabric.technicalSpecs.elasticity || "N/A"}
+                          <span className="text-sm font-normal text-gray-500 ml-1">
+                            %
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500">
+                      No technical specifications available
+                    </p>
+                  )}
+                </div>
+
+                {/* TDS File */}
+                {selectedFabric.tdsFile && (
+                  <div className="lg:col-span-2 bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-100">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <FiFileText className="text-green-600" />
+                      Technical Data Sheet
+                    </h3>
+                    <div className="bg-white p-4 rounded-lg border flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <FiFileText className="text-blue-600 w-8 h-8" />
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {selectedFabric.tdsFile.fileName}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            Uploaded:{" "}
+                            {new Date(
+                              selectedFabric.tdsFile.uploadDate
+                            ).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => downloadTDS(selectedFabric)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+                      >
+                        <FiDownload className="w-4 h-4" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
+              <div className="flex justify-end gap-3">
+                <Button
+                  onClick={() => {
+                    closeDetailModal();
+                    openEditModal(selectedFabric);
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+                >
+                  <FiEdit className="w-4 h-4" />
+                  Edit Fabric
+                </Button>
+                <Button
+                  onClick={closeDetailModal}
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </Card>
         </div>
-      </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isConfirmOpen && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <Card className="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden">
+            <div className="bg-red-600 text-white px-6 py-4">
+              <h2 className="text-lg font-bold">Confirm Deletion</h2>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-700 mb-6">
+                Are you sure you want to delete this fabric? This action cannot
+                be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <Button
+                  onClick={closeConfirm}
+                  className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmDelete}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
+                >
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
+
 export default FabricList;

@@ -11,7 +11,22 @@ import {
   fetchDefectProcesses,
 } from "../../services/masterDataService";
 import { MdDelete, MdRestore } from "react-icons/md";
-import DefectDetailsUI from "./DefectDetailsUI"; // 1. IMPORT THE COMPONENT
+import { 
+  X, 
+  AlertTriangle, 
+  Package, 
+  Calendar, 
+  Factory, 
+  Image as ImageIcon,
+  Camera,
+  Trash2,
+  RotateCcw,
+  Plus,
+  ChevronDown,
+  Info,
+  RefreshCcw
+} from "lucide-react";
+import DefectDetailsUI from "./DefectDetailsUI";
 
 const LogDefectModal = ({
   closeModal,
@@ -41,10 +56,9 @@ const LogDefectModal = ({
   const [defectPlaces, setDefectPlaces] = useState([]);
   const [defectProcesses, setDefectProcesses] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 2. ADD DEFECT DETAILS STATE
+  // Defect details state
   const [defectDetails, setDefectDetails] = useState([]);
 
   // Active images that will be displayed in the UI
@@ -56,6 +70,9 @@ const LogDefectModal = ({
   // Keep track of UI state during drag operations
   const [draggedImage, setDraggedImage] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // UI state for better UX
+  const [expandedSection, setExpandedSection] = useState('general');
 
   useEffect(() => {
     const loadDefects = async () => {
@@ -85,7 +102,7 @@ const LogDefectModal = ({
     const loadOrders = async () => {
       try {
         const data = await fetchOrders({});
-        setOrders(data.data);
+        setOrders(data.allOrders || data.data || []);
       } catch (error) {
         console.error("Error fetching orders:", error);
       }
@@ -110,10 +127,9 @@ const LogDefectModal = ({
     }
   }, [formData.defectType, defectNames]);
 
-  // 3. UPDATE THE EDIT DEFECT USEEFFECT TO HANDLE DETAILS
+  // Update the edit defect useEffect to handle details
   useEffect(() => {
     if (editDefect) {
-      //console.log("editDefect: ", editDefect);
       setFormData({
         ...editDefect,
         orderId: editDefect?.orderId?._id || editDefect?.orderId || "",
@@ -138,14 +154,13 @@ const LogDefectModal = ({
         productionLine: editDefect?.productionLine || "",
       });
 
-      // 4. HANDLE EXISTING DEFECT DETAILS FOR EDIT MODE
+      // Handle existing defect details for edit mode
       if (editDefect.details && editDefect.details.length > 0) {
         const formattedDetails = editDefect.details.map((detail, index) => ({
-          id: `existing-${index}`, // Generate UI ID
+          id: `existing-${index}`,
           defectPlace: detail.defectPlace?._id || detail.defectPlace,
           defectProcess: detail.defectProcess?._id || detail.defectProcess,
           count: detail.count,
-          // Add display names for UI
           placeName:
             detail.defectPlace?.name ||
             defectPlaces.find(
@@ -175,11 +190,10 @@ const LogDefectModal = ({
             isExisting: true,
           };
         });
-        //console.log("Setting active images:", imageObjects);
         setActiveImages(imageObjects);
       }
     } else {
-      // 5. RESET DETAILS FOR NEW DEFECT
+      // Reset details for new defect
       setDefectDetails([]);
     }
   }, [editDefect, defectTypes, defectNames, defectProcesses, defectPlaces]);
@@ -187,16 +201,14 @@ const LogDefectModal = ({
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
-    //console.log("Form Data: ", formData);
   };
 
   const handleDateChange = (date) => {
     setFormData({ ...formData, detectedDate: date });
   };
 
-  // 6. ADD HANDLER FOR DEFECT DETAILS CHANGES
+  // Handler for defect details changes
   const handleDefectDetailsChange = (details) => {
-    //console.log("Defect details updated:", details);
     setDefectDetails(details);
   };
 
@@ -226,40 +238,6 @@ const LogDefectModal = ({
 
     e.target.value = null;
   };
-
-  // const handleFileChange = (e) => {
-  //   const maxSize = 2 * 1024 * 1024; // 2MB
-  //   const validFiles = Array.from(e.target.files).filter(
-  //     (file) => file.size <= maxSize
-  //   );
-
-  //   if (validFiles.length !== e.target.files.length) {
-  //     toast.error("Some images exceeded size limit and were removed");
-  //   }
-
-  //   if (validFiles.length + activeImages.length > 5) {
-  //     toast.error("Maximum 5 images allowed");
-  //     return;
-  //   }
-
-  //   validFiles.forEach((file) => {
-  //     const reader = new FileReader();
-  //     reader.onloadend = () => {
-  //       setActiveImages((prev) => [
-  //         ...prev,
-  //         {
-  //           url: reader.result,
-  //           name: file.name,
-  //           file,
-  //           isExisting: false,
-  //         },
-  //       ]);
-  //     };
-  //     reader.readAsDataURL(file);
-  //   });
-
-  //   e.target.value = null;
-  // };
 
   const moveImageToTrash = (index) => {
     const imageToTrash = activeImages[index];
@@ -299,7 +277,7 @@ const LogDefectModal = ({
     setIsDragging(false);
   };
 
-  // 7. UPDATE THE SUBMIT HANDLER TO INCLUDE DETAILS
+  // Update the submit handler to include details
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -307,12 +285,12 @@ const LogDefectModal = ({
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    // 8. VALIDATE DEFECT DETAILS IF PROVIDED
+    // Validate defect details if provided
     const totalDetailsCount = defectDetails.reduce(
       (sum, detail) => sum + detail.count,
       0
     );
-    // if (defectDetails.length > 0 && totalDetailsCount !== formData.defectCount) {
+
     if (
       defectDetails.length > 0 &&
       Number(totalDetailsCount) !== Number(formData.defectCount)
@@ -320,6 +298,7 @@ const LogDefectModal = ({
       toast.error(
         `Detail count (${totalDetailsCount}) must match total defect count (${formData.defectCount})`
       );
+      setIsSubmitting(false);
       return;
     }
 
@@ -332,7 +311,7 @@ const LogDefectModal = ({
       }
     });
 
-    // 9. APPEND DEFECT DETAILS TO FORM DATA
+    // Append defect details to form data
     if (defectDetails.length > 0) {
       formDataWithImages.append(
         "details",
@@ -344,7 +323,6 @@ const LogDefectModal = ({
           }))
         )
       );
-      console.log("Appending defect details:", defectDetails);
     }
 
     // Append new files only
@@ -387,22 +365,6 @@ const LogDefectModal = ({
       );
     } finally {
       setIsSubmitting(false);
-      // setActiveImages([]);
-      // setTrashedImages([]);
-      // setDefectDetails([]);
-      // setFormData({
-      //   orderId: "",
-      //   defectType: "",
-      //   defectName: "",
-      //   defectPlace: undefined,
-      //   defectProcess: undefined,
-      //   holesOrOperation: "",
-      //   defectCount: 1,
-      //   description: "",
-      //   severity: "Low",
-      //   detectedDate: new Date().toLocaleDateString(),
-      //   productionLine: "",
-      // });
     }
   };
 
@@ -410,29 +372,81 @@ const LogDefectModal = ({
     (process) => process.place._id === formData.defectPlace
   );
 
+  const getSeverityColor = (severity) => {
+    switch (severity) {
+      case "High":
+        return "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800";
+      case "Medium":
+        return "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800";
+      case "Low":
+        return "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800";
+      default:
+        return "bg-gray-50 dark:bg-gray-900/20 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800";
+    }
+  };
+
+  const sections = [
+    { id: 'general', title: 'General Details', icon: Package },
+    { id: 'production', title: 'Production Info', icon: Factory },
+    { id: 'images', title: 'Defect Images', icon: ImageIcon },
+  ];
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white w-full max-w-4xl p-4 rounded-lg shadow-lg relative max-h-[90vh] overflow-hidden">
-        <h2 className="text-xl font-bold mb-4 text-gray-800">
-          {editDefect ? "Edit Defect" : "Log New Defect"}
-        </h2>
+    <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="overflow-y-auto bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl w-full max-w-6xl rounded-3xl shadow-2xl border border-white/20 dark:border-gray-700/20 relative max-h-[95vh] overflow-hidden">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/50 px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-red-500 to-red-600 dark:from-red-600 dark:to-red-700 rounded-2xl shadow-lg">
+                <AlertTriangle className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {editDefect ? "Edit Defect" : "Log New Defect"}
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 mt-1">
+                  {editDefect ? "Update defect information" : "Record a new production defect"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={closeModal}
+              className="p-3 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-2xl transition-all duration-200"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="max-h-[75vh] overflow-y-auto pr-2">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-2 text-gray-600">
-                General Details
-              </h3>
+        <form onSubmit={handleSubmit} className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto px-8 py-6 space-y-8">
+            
+            {/* General Details Section */}
+            <div className="bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-2xl p-6 border border-blue-100/50 dark:border-blue-800/30">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-xl">
+                  <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  General Details
+                </h3>
+              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block mb-2">Order ID:</label>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Order Selection */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Package className="w-4 h-4" />
+                    Order Selection
+                  </label>
                   <select
                     name="orderId"
                     value={formData.orderId}
                     onChange={handleChange}
                     required
-                    className="w-full p-2 mb-4 border border-gray-300 rounded"
+                    className="w-full px-4 py-3 bg-white/70 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200"
                   >
                     <option value="" disabled>
                       Select an Order
@@ -445,14 +459,36 @@ const LogDefectModal = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block mb-2">Defect Type:</label>
+                {/* Defect Count */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <AlertTriangle className="w-4 h-4" />
+                    Defect Count
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    name="defectCount"
+                    value={formData.defectCount}
+                    onChange={handleChange}
+                    placeholder="Enter defect quantity"
+                    required
+                    className="w-full px-4 py-3 bg-white/70 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200"
+                  />
+                </div>
+
+                {/* Defect Type */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Defect Type
+                  </label>
                   <select
                     name="defectType"
                     value={formData.defectType}
                     onChange={handleChange}
                     required
-                    className="w-full p-2 mb-4 border border-gray-300 rounded"
+                    className="w-full px-4 py-3 bg-white/70 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 text-gray-900 dark:text-white transition-all duration-200"
                   >
                     <option value="" disabled>
                       Select Defect Type
@@ -465,14 +501,17 @@ const LogDefectModal = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block mb-2">Defect Name:</label>
+                {/* Defect Name */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Defect Name
+                  </label>
                   <select
                     name="defectName"
                     value={formData.defectName || ""}
                     onChange={handleChange}
                     required
-                    className="w-full p-2 mb-4 border border-gray-300 rounded"
+                    className="w-full px-4 py-3 bg-white/70 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 text-gray-900 dark:text-white transition-all duration-200 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-800"
                     disabled={!formData.defectType || isLoading}
                   >
                     <option value="" disabled>
@@ -490,113 +529,86 @@ const LogDefectModal = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block mb-2">Defect Count:</label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    name="defectCount"
-                    value={formData.defectCount}
-                    onChange={handleChange}
-                    placeholder="Enter defect quantity"
-                    required
-                    className="w-full p-2 mb-4 border border-gray-300 rounded"
-                  />
-                </div>
-
-                <div>
-                  <label className="block mb-2">Severity:</label>
-                  <select
-                    name="severity"
-                    value={formData.severity}
-                    required
-                    onChange={handleChange}
-                    className="w-full p-2 mb-4 border border-gray-300 rounded"
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block mb-2">Sewing Or Holes:</label>
-                  <select
-                    name="holesOrOperation"
-                    value={formData.holesOrOperation}
-                    required
-                    onChange={handleChange}
-                    className="w-full p-2 mb-4 border border-gray-300 rounded"
-                  >
-                    <option value="">Select Sewing Or Holes</option>
-                    {["Holes", "Operation"].map((hOrO) => (
-                      <option key={hOrO} value={hOrO}>
-                        {hOrO}
-                      </option>
+                {/* Severity */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Severity Level
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {['Low', 'Medium', 'High'].map((severity) => (
+                      <label
+                        key={severity}
+                        className={`flex items-center justify-center px-4 py-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                          formData.severity === severity
+                            ? getSeverityColor(severity)
+                            : 'border-gray-200 dark:border-gray-600 bg-white/50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="severity"
+                          value={severity}
+                          checked={formData.severity === severity}
+                          onChange={handleChange}
+                          className="sr-only"
+                        />
+                        <span className="font-medium">{severity}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block mb-2">Defect Place:</label>
-                  <select
-                    name="defectPlace"
-                    value={formData.defectPlace || ""}
-                    onChange={handleChange}
-                    className="w-full p-2 mb-4 border border-gray-300 rounded"
-                  >
-                    <option value="" disabled hidden>
-                      Select Defect Place
-                    </option>
-                    {defectPlaces?.map((place) => (
-                      <option key={place._id} value={place._id}>
-                        {place.name}
-                      </option>
+                {/* Sewing or Holes */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Category
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['Holes', 'Operation'].map((category) => (
+                      <label
+                        key={category}
+                        className={`flex items-center justify-center px-4 py-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                          formData.holesOrOperation === category
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800'
+                            : 'border-gray-200 dark:border-gray-600 bg-white/50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="holesOrOperation"
+                          value={category}
+                          checked={formData.holesOrOperation === category}
+                          onChange={handleChange}
+                          className="sr-only"
+                          required={category === 'Holes'} // only on first radio to enforce group required
+                        />
+                        <span className="font-medium">{category}</span>
+                      </label>
                     ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block mb-2">Defect Process:</label>
-                  <select
-                    name="defectProcess"
-                    value={formData.defectProcess || ""}
-                    onChange={handleChange}
-                    required
-                    className="w-full p-2 mb-4 border border-gray-300 rounded"
-                    disabled={!formData.defectPlace || isLoading}
-                  >
-                    <option value="" disabled>
-                      Select Defect Process
-                    </option>
-                    {filteredDefectProcesses?.length > 0 ? (
-                      filteredDefectProcesses?.map((process) => (
-                        <option key={process._id} value={process._id}>
-                          {process.name}
-                        </option>
-                      ))
-                    ) : (
-                      <option disabled>No options available</option>
-                    )}
-                  </select>
+                  </div>
                 </div>
               </div>
 
-              <label className="block mb-2">Description:</label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                className="w-full p-2 mb-4 border border-gray-300 rounded"
-                placeholder="Optional: Describe the defect in detail"
-                rows="3"
-              />
+              {/* Description */}
+              <div className="mt-6 space-y-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <Info className="w-4 h-4" />
+                  Description (Optional)
+                </label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 bg-white/70 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200 resize-none"
+                  placeholder="Describe the defect in detail..."
+                  rows="3"
+                />
+              </div>
             </div>
 
-            {/* 10. INSERT THE DEFECT DETAILS UI COMPONENT HERE */}
+            {/* Defect Details UI */}
             {formData.defectName && formData.defectCount > 0 && (
-              <div className="mb-6">
+              <div className="bg-gradient-to-br from-purple-50/50 to-pink-50/50 dark:from-purple-900/10 dark:to-pink-900/10 rounded-2xl p-6 border border-purple-100/50 dark:border-purple-800/30">
                 <DefectDetailsUI
                   defectName={formData.defectName}
                   defectType={formData.defectType}
@@ -610,164 +622,186 @@ const LogDefectModal = ({
               </div>
             )}
 
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-2 text-gray-600">
-                Additional Details
-              </h3>
+            {/* Production Info Section */}
+            <div className="bg-gradient-to-br from-green-50/50 to-emerald-50/50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-2xl p-6 border border-green-100/50 dark:border-green-800/30">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-xl">
+                  <Factory className="w-5 h-5 text-green-600 dark:text-green-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Production Information
+                </h3>
+              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block mb-2">Line of Production:</label>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Production Line */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-white">
+                    <Factory className="w-4 h-4" />
+                    Production Line
+                  </label>
                   <select
                     name="productionLine"
                     value={formData.productionLine}
                     onChange={handleChange}
-                    className="w-full p-2 mb-4 border border-gray-300 rounded"
+                    className="w-full px-4 py-3 bg-white/70 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 text-gray-900 dark:text-white transition-all duration-200"
                     required
                   >
-                    <option value="">Select Line</option>
-                    {/* {["Line 1", "Line 2", "Line 3", "Line 4", "Line 5", "Line 6", "Line 7", "Sample Room"].map((line) => ( */}
+                    <option value="" disabled>
+                      Select Production Line
+                    </option>
                     {PRODUCTION_LINES.map((line) => (
-                      <option key={line} value={line}>
+                      <option key={line.id} value={line.id}>
                         {line}
                       </option>
                     ))}
                   </select>
                 </div>
-
-                <div>
-                  <label className="block mb-2">Inspection Date:</label>
+                {/* Detected Date */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Calendar className="w-4 h-4" />
+                    Detected Date
+                  </label>
                   <DatePicker
-                    selected={formData.detectedDate}
+                    selected={new Date(formData.detectedDate)}
                     onChange={handleDateChange}
-                    className="w-full p-2 mb-4 border border-gray-300 rounded"
                     dateFormat="yyyy-MM-dd"
-                    placeholderText="Select date"
-                    showYearDropdown
-                    scrollableMonthYearDropdown
-                    required
+                    className="w-full px-4 py-3 bg-white/70 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200"
                   />
                 </div>
               </div>
-
-              <h3 className="text-lg font-semibold mb-2 text-gray-600">
-                Defect Images
-              </h3>
-
-              <div className="mb-4">
-                <label className="block mb-2">Upload Images (Max 5):</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  multiple
-                  className="w-full mb-4 border border-gray-300 rounded"
-                  disabled={activeImages.length >= 5}
-                />
-                <p className="text-sm text-gray-500">
-                  Upload multiple images to document the defect (drag to
-                  reorder)
-                </p>
+            </div>
+            {/* Images Section */}
+            <div className="bg-gradient-to-br from-yellow-50/50 to-amber-50/50 dark:from-yellow-900/10 dark:to-amber-900/10 rounded-2xl p-6 border border-yellow-100/50 dark:border-yellow-800/30">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-yellow-100 dark:bg-yellow-900/50 rounded-xl">
+                  <Camera className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Defect Images
+                </h3>
               </div>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <label
+                    htmlFor="imageUpload"
+                    className={`flex items-center justify-center px-4 py-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      activeImages.length >= 5
+                        ? "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed"
+                        : "bg-white/70 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    <Plus className="w-5 h-5 mr-2" />
+                    <span className="font-medium">Add Images</span>
+                    <input
+                      type="file"
+                      id="imageUpload"
+                      accept="image/*"
+                      multiple
+                      onChange={handleFileChange}
+                      className="hidden"
+                      disabled={activeImages.length >= 5}
+                    />
+                  </label>
+                  {activeImages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveImages([])}
+                      className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-xl hover:bg-red-100 dark:hover:bg-red-800 transition-all duration-200"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      Clear All
+                    </button>
+                  )}
+                </div>
 
-              {/* Active Images Section */}
-              {activeImages.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="font-medium mb-2">Active Images</h4>
-                  <div className="grid grid-cols-3 gap-4">
-                    {activeImages.map((image, index) => (
+                {/* Active Images Display */}
+                {activeImages.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-6">
+                    {activeImages.map((img, index) => (
                       <div
                         key={index}
-                        className={`relative group border-2 rounded p-1 ${
-                          isDragging && draggedImage === index
-                            ? "border-blue-500 opacity-50"
-                            : "border-gray-200"
+                        className={`relative group rounded-lg overflow-hidden shadow-lg transition-transform duration-200 ${
+                          isDragging ? "opacity-50" : ""
                         }`}
-                        draggable
+                        draggable={!img.isExisting}
                         onDragStart={(e) => handleDragStart(e, index)}
                         onDragOver={(e) => handleDragOver(e, index)}
                         onDragEnd={handleDragEnd}
                       >
                         <img
-                          src={image.url}
-                          alt={image.name}
-                          className="w-full h-24 object-cover rounded"
+                          src={img.url}
+                          alt={img.name}
+                          className="w-full h-48 object-cover"
                         />
-                        <button
-                          type="button"
-                          onClick={() => moveImageToTrash(index)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Move to trash"
-                        >
-                          <MdDelete className="h-4 w-4" />
-                        </button>
-                        <div className="text-xs text-gray-500 truncate mt-1">
-                          {image.name}
+                        <div className="absolute top-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          {!img.isExisting && (
+                            <button
+                              type="button"
+                              onClick={() => moveImageToTrash(index)}
+                              className="p-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-full hover:bg-red-100 dark:hover:bg-red-800 transition-all duration-200"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-2">
+                          {img.name}
                         </div>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* Trash Bin Section */}
-              {trashedImages.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-medium mb-2 flex items-center">
-                    <span>Trashed Images</span>
-                    <span className="ml-2 text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
-                      {trashedImages.length}
-                    </span>
-                  </h4>
-                  <div className="grid grid-cols-3 gap-4 bg-gray-100 p-2 rounded">
-                    {trashedImages.map((image, index) => (
-                      <div
-                        key={index}
-                        className="relative group opacity-60 hover:opacity-100"
-                      >
-                        <img
-                          src={image.url}
-                          alt={image.name}
-                          className="w-full h-16 object-cover rounded border border-gray-300"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => restoreImage(index)}
-                          className="absolute top-1 right-1 bg-green-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Restore image"
+                )}
+                {/* Trashed Images Display */}
+                {trashedImages.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                      Trashed Images
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-6">
+                      {trashedImages.map((img, index) => (
+                        <div
+                          key={index}
+                          className="relative group rounded-lg overflow-hidden shadow-lg"
                         >
-                          <MdRestore className="h-4 w-4" />
-                        </button>
-                        <div className="text-xs text-gray-600 truncate mt-1">
-                          {image.name}
+                          <img
+                            src={img.url}
+                            alt={img.name}
+                            className="w-full h-48 object-cover"
+                          />
+                          <div className="absolute top-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <button
+                              type="button"
+                              onClick={() => restoreImage(index)}
+                              className="p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full hover:bg-green-100 dark:hover:bg-green-800 transition-all duration-200"
+                            >
+                              <RefreshCcw className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-2">
+                            {img.name}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-
-          <div className="absolute bottom-4 left-0 right-0 flex justify-between space-x-2 px-4">
-            <button
-              type="button"
-              onClick={closeModal}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-            >
-              Cancel
-            </button>
+          {/* Footer with Submit Button */}
+          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-t border-gray-200/50 dark:border-gray-700/50 px-8 py-6 flex justify-end">
             <button
               type="submit"
-              className="px-4 py-2 text-white rounded hover:bg-indigo-700"
-              style={{ backgroundColor: currentColor }}
               disabled={isSubmitting}
+              className={`px-6 py-3 rounded-full text-white font-semibold transition-all duration-200 ${
+                isSubmitting
+                  ? "bg-gray-400 dark:bg-gray-600 cursor-not-allowed"
+                  : "bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
+              }`}
             >
-              {isSubmitting
-                ? "Processing..."
-                : editDefect
-                ? "Update Defect"
-                : "Save Defect"}
+              {isSubmitting ? "Submitting..." : editDefect ? "Update Defect" : "Log Defect"}
             </button>
           </div>
         </form>
@@ -775,5 +809,4 @@ const LogDefectModal = ({
     </div>
   );
 };
-
 export default LogDefectModal;

@@ -1,6 +1,7 @@
 const Defect = require("../models/defect/Defect");
 const Order = require("../models/order/Order");
 const Style = require("../models/order/Style");
+const { DateTime } = require("luxon");
 const { default: mongoose } = require("mongoose");
 
 function escapeRegex(string) {
@@ -24,27 +25,65 @@ const stageMapping = {
 const calculateProgress = (currentStage) => stageMapping[currentStage] || 0;
 
 // Add this helper function at the top of your controller file
-const parseDateFilter = (dateString) => {
-  if (!dateString) return null;
-  const date = new Date(dateString);
-  return isNaN(date.getTime()) ? null : date;
+// const parseDateFilter = (dateString) => {
+//   if (!dateString) return null;
+//   const date = new Date(dateString);
+//   return isNaN(date.getTime()) ? null : date;
+// };
+
+const parseDateFilter = (dateString, options = { zone: "Africa/Cairo" }) => {
+  if (!dateString || typeof dateString !== "string") return null;
+
+  const dt = DateTime.fromISO(dateString, options);
+  return dt.isValid ? dt : null;
 };
 
 // ✅ **Create or Update Order**
 exports.createOrUpdateOrder = async (req, res) => {
   try {
-    const { orderNo, ...otherFields } = req.body;
+    const { orderNo, season, ...otherFields } = req.body;
     //console.log("Received order data:", req.body);
 
-    // Trim and normalize order number
-    const normalizedOrderNo = orderNo.toString().trim();
-    const existingOrder = await Order.findOne({ orderNo: normalizedOrderNo });
+    // Validate required fields
+    if (!orderNo || !season) {
+      return res.status(400).json({
+        message: "Both order number and season are required 😎",
+      });
+    }
 
-    if (
-      existingOrder &&
-      (!req.params.id || req.params.id !== existingOrder._id.toString())
-    ) {
-      return res.status(400).json({ message: "Order number already exists." });
+    // Trim and normalize order number
+    // const normalizedOrderNo = orderNo.toString().trim();
+    // Trim and normalize inputs
+    const normalizedOrderNo = orderNo.toString().trim();
+    const normalizedSeason = season.toString().trim();
+    // const existingOrder = await Order.findOne({ orderNo: normalizedOrderNo });
+    // Check for existing order with same orderNo + season combination
+    const existingOrder = await Order.findOne({
+      orderNo: normalizedOrderNo,
+      season: normalizedSeason,
+    });
+
+    // if (
+    //   existingOrder &&
+    //   (!req.params.id || req.params.id !== existingOrder._id.toString())
+    // ) {
+    //   return res.status(400).json({ message: "Order number already exists." });
+    // }
+
+    // For updates, ensure we're not conflicting with another order
+    if (existingOrder) {
+      // If creating new order
+      if (!req.params.id) {
+        return res.status(400).json({
+          message: "Order with this number already exists for this season",
+        });
+      }
+      // If updating existing order
+      if (req.params.id !== existingOrder._id.toString()) {
+        return res.status(400).json({
+          message: "Another order already uses this number for this season",
+        });
+      }
     }
 
     let order;
@@ -52,7 +91,11 @@ exports.createOrUpdateOrder = async (req, res) => {
       // **Update existing order**
       order = await Order.findByIdAndUpdate(
         req.params.id,
-        { orderNo: normalizedOrderNo, ...otherFields },
+        {
+          orderNo: normalizedOrderNo,
+          season: normalizedSeason,
+          ...otherFields,
+        },
         {
           new: true,
           runValidators: true,
@@ -61,7 +104,11 @@ exports.createOrUpdateOrder = async (req, res) => {
       if (!order) return res.status(404).json({ message: "Order not found." });
     } else {
       // **Create new order**
-      order = new Order({ orderNo: normalizedOrderNo, ...otherFields });
+      order = new Order({
+        orderNo: normalizedOrderNo,
+        season: normalizedSeason,
+        ...otherFields,
+      });
       //order.barcode7 = generateBarcode7();
       await order.save();
     }
@@ -85,14 +132,142 @@ exports.createOrUpdateOrder = async (req, res) => {
     populatedOrder.stageProgress = calculateProgress(
       populatedOrder.currentStage
     );
-    res
-      .status(200)
-      .json({ message: "Order Created/Updated Successfully", populatedOrder });
+    // Return the populated order
+    res.status(200).json({
+      message: req.params.id
+        ? "Order updated successfully 😎"
+        : "Order created successfully 😎",
+      populatedOrder,
+    });
   } catch (error) {
     console.error("Error creating/updating order:", error);
     res.status(500).json({ message: "Error processing order", error });
   }
 };
+
+// ✅ **Get All Orders with Pagination, Sorting & Filtering**
+// exports.getAllOrders = async (req, res) => {
+//   try {
+//     const {
+//       page = 1,
+//       limit = 10,
+//       sortField = "orderDate",
+//       sortOrder = "desc",
+//       search,
+//       style,
+//       dateFrom,
+//       dateTo,
+//       customer,
+//       brand,
+//       season,
+//       minDefectRate,
+//       maxDefectRate,
+//     } = req.query;
+//     console.log("Query Parameters:", req.query);
+
+//     const filter = {};
+
+//     if (style) {
+//       filter.style = style;
+//     }
+
+//     if (search) {
+//       const safeSearch = escapeRegex(search);
+//       filter.$or = [
+//         { orderNo: { $regex: safeSearch, $options: "i" } },
+//         { keyNo: { $regex: safeSearch, $options: "i" } },
+//         { styleNo: { $regex: safeSearch, $options: "i" } },
+//         { articleNo: { $regex: safeSearch, $options: "i" } },
+//       ];
+//     }
+
+//     // Date range filter
+//     const fromDate = parseDateFilter(dateFrom);
+//     const toDate = parseDateFilter(dateTo);
+//     if (fromDate || toDate) {
+//       filter.orderDate = {};
+//       if (fromDate) filter.orderDate.$gte = fromDate;
+//       if (toDate)
+//         filter.orderDate.$lte = new Date(toDate.setHours(23, 59, 59, 999));
+//     }
+
+//     // Customer filter
+//     if (customer) {
+//       filter.customer = customer;
+//     }
+
+//     // Brand filter
+//     if (brand) {
+//       filter.brand = brand;
+//     }
+//     // Season filter
+//     if (season) {
+//       filter.season = season;
+//     }
+
+//     const skip = (page - 1) * limit;
+//     let orders = await Order.find(filter)
+//       .populate("customer", "name")
+//       .populate("fabricSupplier", "name")
+//       .populate("style", "name styleNo")
+//       .populate("fabric", "name color")
+//       .populate("brand", "name")
+//       .populate("defects")
+//       .populate({
+//         path: "fabric",
+//         populate: {
+//           path: "fabricCompositions",
+//           populate: { path: "compositionItem", select: "name abbrPrefix" },
+//         },
+//       })
+//       .sort({ [sortField]: sortOrder === "asc" ? 1 : -1 })
+//       .skip(parseInt(skip))
+//       .limit(parseInt(limit));
+//     // .cache(false); // Disable caching for this query
+
+//     // Calculate defect rates
+//     orders = orders.map((order) => {
+//       const totalDefects = order.defects.reduce(
+//         (sum, defect) => sum + (defect.defectCount || 0),
+//         0
+//       );
+
+//       const defectRate =
+//         order.orderQty > 0 ? (totalDefects / order.orderQty) * 100 : 0;
+
+//       return {
+//         ...order.toObject(),
+//         totalDefectCount: totalDefects,
+//         defectRate: parseFloat(defectRate.toFixed(2)),
+//       };
+//     });
+
+//     // Apply defect rate filters after calculation
+//     if (minDefectRate || maxDefectRate) {
+//       orders = orders.filter((order) => {
+//         const rate = order.defectRate;
+//         return (
+//           (minDefectRate ? rate >= parseFloat(minDefectRate) : true) &&
+//           (maxDefectRate ? rate <= parseFloat(maxDefectRate) : true)
+//         );
+//       });
+//     }
+
+//     const total = await Order.countDocuments(filter);
+
+//     res.status(200).json({
+//       data: orders,
+//       pagination: {
+//         total,
+//         page: parseInt(page),
+//         limit: parseInt(limit),
+//         totalPages: Math.ceil(total / limit),
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: "Error fetching orders", error });
+//   }
+// };
 
 // ✅ **Get All Orders with Pagination, Sorting & Filtering**
 exports.getAllOrders = async (req, res) => {
@@ -112,6 +287,7 @@ exports.getAllOrders = async (req, res) => {
       minDefectRate,
       maxDefectRate,
     } = req.query;
+    // console.log("Query Parameters:", req.query);
 
     const filter = {};
 
@@ -128,22 +304,23 @@ exports.getAllOrders = async (req, res) => {
         { articleNo: { $regex: safeSearch, $options: "i" } },
       ];
     }
-    // If search is provided, filter by orderNo or keyNo
-    // if (search) {
-    //   filter.$or = [
-    //     { orderNo: { $regex: search, $options: "i" } },
-    //     { keyNo: { $regex: search, $options: "i" } },
-    //   ];
-    // }
 
     // Date range filter
-    const fromDate = parseDateFilter(dateFrom);
-    const toDate = parseDateFilter(dateTo);
-    if (fromDate || toDate) {
+    // const fromDate = parseDateFilter(dateFrom);
+    // const toDate = parseDateFilter(dateTo);
+    // if (fromDate || toDate) {
+    //   filter.orderDate = {};
+    //   if (fromDate) filter.orderDate.$gte = fromDate;
+    //   if (toDate)
+    //     filter.orderDate.$lte = new Date(toDate.setHours(23, 59, 59, 999));
+    // }
+    const fromLuxon = parseDateFilter(dateFrom)?.startOf("day");
+    const toLuxon = parseDateFilter(dateTo)?.endOf("day");
+
+    if (fromLuxon || toLuxon) {
       filter.orderDate = {};
-      if (fromDate) filter.orderDate.$gte = fromDate;
-      if (toDate)
-        filter.orderDate.$lte = new Date(toDate.setHours(23, 59, 59, 999));
+      if (fromLuxon) filter.orderDate.$gte = fromLuxon.toUTC().toJSDate();
+      if (toLuxon) filter.orderDate.$lte = toLuxon.toUTC().toJSDate();
     }
 
     // Customer filter
@@ -160,7 +337,10 @@ exports.getAllOrders = async (req, res) => {
       filter.season = season;
     }
 
-    const skip = (page - 1) * limit;
+    // First get total count for pagination info
+    const total = await Order.countDocuments(filter);
+
+    // Fetch ALL matching records (without pagination)
     let orders = await Order.find(filter)
       .populate("customer", "name")
       .populate("fabricSupplier", "name")
@@ -174,13 +354,9 @@ exports.getAllOrders = async (req, res) => {
           path: "fabricCompositions",
           populate: { path: "compositionItem", select: "name abbrPrefix" },
         },
-      })
-      .sort({ [sortField]: sortOrder === "asc" ? 1 : -1 })
-      .skip(parseInt(skip))
-      .limit(parseInt(limit));
-    // .cache(false); // Disable caching for this query
+      });
 
-    // Calculate defect rates
+    // Calculate defect rates and add to order objects
     orders = orders.map((order) => {
       const totalDefects = order.defects.reduce(
         (sum, defect) => sum + (defect.defectCount || 0),
@@ -208,15 +384,35 @@ exports.getAllOrders = async (req, res) => {
       });
     }
 
-    const total = await Order.countDocuments(filter);
+    // Apply sorting to ALL records
+    if (sortField === "defectRate") {
+      orders.sort((a, b) => {
+        return sortOrder === "asc"
+          ? a.defectRate - b.defectRate
+          : b.defectRate - a.defectRate;
+      });
+    } else {
+      // Default sorting for other fields
+      orders.sort((a, b) => {
+        if (a[sortField] < b[sortField]) return sortOrder === "asc" ? -1 : 1;
+        if (a[sortField] > b[sortField]) return sortOrder === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    // Now apply pagination after sorting
+    const skip = (page - 1) * limit;
+    const paginatedOrders = orders.slice(skip, skip + parseInt(limit));
 
     res.status(200).json({
-      data: orders,
+      data: paginatedOrders,
+      allOrders: orders, // Include all orders for client-side filtering
+      // If you want to return the filtered length based on defect rate filters:
       pagination: {
-        total,
+        total: orders.length, // Use filtered length if defect rate filters were applied
         page: parseInt(page),
         limit: parseInt(limit),
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(orders.length / limit),
       },
     });
   } catch (error) {
@@ -386,8 +582,9 @@ exports.getOrderStatistics = async (req, res) => {
       brand,
       season,
       minDefectRate,
-      maxDefectRate
+      maxDefectRate,
     } = req.query;
+    //console.log("Query Parameters for Statistics:", req.query);
 
     const filter = {};
 
@@ -406,13 +603,33 @@ exports.getOrderStatistics = async (req, res) => {
     }
 
     // Date range
-    const fromDate = parseDateFilter(dateFrom);
-    const toDate = parseDateFilter(dateTo);
-    if (fromDate || toDate) {
+    // const fromDate = parseDateFilter(dateFrom);
+    // const toDate = parseDateFilter(dateTo);
+    // if (fromDate || toDate) {
+    //   filter.orderDate = {};
+    //   if (fromDate) filter.orderDate.$gte = fromDate;
+    //   if (toDate)
+    //     filter.orderDate.$lte = new Date(new Date(toDate).setHours(23, 59, 59, 999));
+    // }
+
+    // 🧠 Parse and normalize dateFrom and dateTo
+    const fromDateLuxon = dateFrom
+      ? DateTime.fromISO(dateFrom, { zone: "Africa/Cairo" }).startOf("day")
+      : null;
+
+    const toDateLuxon = dateTo
+      ? DateTime.fromISO(dateTo, { zone: "Africa/Cairo" }).endOf("day")
+      : null;
+
+    // 🧪 Validate and apply to MongoDB filter
+    if (fromDateLuxon?.isValid || toDateLuxon?.isValid) {
       filter.orderDate = {};
-      if (fromDate) filter.orderDate.$gte = fromDate;
-      if (toDate)
-        filter.orderDate.$lte = new Date(new Date(toDate).setHours(23, 59, 59, 999));
+      if (fromDateLuxon?.isValid) {
+        filter.orderDate.$gte = fromDateLuxon.toUTC().toJSDate(); // Convert to UTC Date
+      }
+      if (toDateLuxon?.isValid) {
+        filter.orderDate.$lte = toDateLuxon.toUTC().toJSDate(); // Convert to UTC Date
+      }
     }
 
     // Customer, Brand, Season
@@ -421,9 +638,7 @@ exports.getOrderStatistics = async (req, res) => {
     if (season) filter.season = season;
 
     // 2. Fetch orders (with defects)
-    let ordersRaw = await Order.find(filter)
-      .populate("defects")
-      .lean();
+    let ordersRaw = await Order.find(filter).populate("defects").lean();
 
     // 3. Add totalDefectCount & defectRate per order
     let orders = ordersRaw.map((order) => {
@@ -455,7 +670,10 @@ exports.getOrderStatistics = async (req, res) => {
 
     // 5. Calculate statistics on the filtered order list
     const totalOrders = orders.length;
-    const totalQuantity = orders.reduce((sum, order) => sum + (order.orderQty || 0), 0);
+    const totalQuantity = orders.reduce(
+      (sum, order) => sum + (order.orderQty || 0),
+      0
+    );
     const totalDefects = orders.reduce(
       (sum, order) => sum + (order.totalDefectCount || 0),
       0
@@ -495,5 +713,3 @@ exports.getOrderStatistics = async (req, res) => {
     res.status(500).json({ message: "Error fetching order statistics", error });
   }
 };
-
-

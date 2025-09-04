@@ -1,22 +1,51 @@
-// src/pages/DefectList.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  CheckCircle,
+  Clock,
+  Download,
+  Edit,
+  Eye,
+  Filter,
+  Package,
+  Plus,
+  RefreshCw,
+  Search,
+  Target,
+  Trash2,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Info,
+  Factory,
+  TrendingDown,
+  TrendingUp,
+  MoreVertical,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+} from "lucide-react";
 import { PRODUCTION_LINES } from "../data/dummy";
-//import axios from "../services/api";
-import LogDefectModal from "../components/defect/LogDefectModal";
-import { useStateContext } from "../contexts/ContextProvider";
-//import { PencilIcon, TrashIcon } from "@heroicons/react/24/solid";
-import ConfirmationModal from "./../components/ConfirmationModal";
+import { Menu, Transition } from "@headlessui/react";
+import { Fragment } from "react";
 import { toast } from "react-toastify";
-import { fetchDefects, deleteDefect } from "../services/defectService";
+import {
+  fetchDefects,
+  deleteDefect,
+  fetchDefectStatistics,
+} from "../services/defectService";
 import {
   fetchDefectTypes,
   fetchDefectNames,
-} from "../services/masterDataService"; // Assuming fetchDefectNames exists
+} from "../services/masterDataService";
+import { useStateContext } from "../contexts/ContextProvider";
+import LogDefectModal from "../components/defect/LogDefectModal";
+import ConfirmationModal from "./../components/ConfirmationModal";
 import Spinner from "../components/Spinner";
-import { Menu, Transition } from "@headlessui/react";
-import { Fragment } from "react";
-import { MoreVertical, Edit, Trash2, Eye, Calendar, X } from "lucide-react"; // Import icons
 
 const DefectList = () => {
   const { currentColor } = useStateContext();
@@ -35,6 +64,7 @@ const DefectList = () => {
     page: 1,
     limit: 10,
     totalPages: 1,
+    total: 0,
   });
   const [sort, setSort] = useState({ field: "detectedDate", order: "desc" });
   const [search, setSearch] = useState("");
@@ -47,9 +77,104 @@ const DefectList = () => {
   const [defectTypes, setDefectTypes] = useState([]);
   const [defectNames, setDefectNames] = useState([]);
   const [availableDefectNames, setAvailableDefectNames] = useState([]);
-
-  // Get unique production lines from defects
   const [productionLines, setProductionLines] = useState([]);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [error, setError] = useState("");
+  // In your component
+  const [statistics, setStatistics] = useState({
+    totalDefects: 0,
+    totalDefectCount: 0,
+    criticalDefects: 0,
+    recentDefects: 0,
+    avgDefectsPerOrder: 0,
+  });
+
+  // Define sortable columns with their display names and sort fields
+  const sortableColumns = {
+    order: { label: "Order & Defect", field: "orderId.orderNo", sortKey: "orderNo" },
+    defectName: { label: "Defect Name", field: "defectName.name", sortKey: "defectName" },
+    type: { label: "Type & Category", field: "defectType.name", sortKey: "defectType" },
+    severity: { label: "Severity", field: "severity", sortKey: "severity" },
+    productionLine: { label: "Production Info", field: "productionLine", sortKey: "productionLine" },
+    count: { label: "Count", field: "defectCount", sortKey: "defectCount" },
+    date: { label: "Date", field: "detectedDate", sortKey: "detectedDate" },
+  };
+
+  // Handle column sorting
+  const handleSort = (sortKey) => {
+    console.log("Sorting by:", sortKey);
+    setSort((prevSort) => {
+      const newOrder = 
+        prevSort.field === sortKey && prevSort.order === "asc" ? "desc" : "asc";
+      return {
+        field: sortKey,
+        order: newOrder,
+      };
+    });
+    // Reset to first page when sorting changes
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  // Get sort icon for column headers
+  const getSortIcon = (sortKey) => {
+    if (sort.field !== sortKey) {
+      return <ArrowUpDown className="w-4 h-4 text-gray-400" />;
+    }
+    return sort.order === "asc" ? (
+      <ArrowUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+    ) : (
+      <ArrowDown className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+    );
+  };
+
+  // Sortable Column Header Component
+  const SortableHeader = ({ sortKey, children, className = "" }) => (
+    <th
+      className={`px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors select-none ${className}`}
+      onClick={() => handleSort(sortKey)}
+    >
+      <div className="flex items-center justify-between group">
+        <span>{children}</span>
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+          {getSortIcon(sortKey)}
+        </div>
+        {sort.field === sortKey && (
+          <div className="opacity-100">
+            {getSortIcon(sortKey)}
+          </div>
+        )}
+      </div>
+    </th>
+  );
+
+  useEffect(() => {
+    const loadStatistics = async () => {
+      try {
+        const stats = await fetchDefectStatistics({
+          search,
+          severity: severityFilter,
+          defectType: defectTypeFilter,
+          defectName: defectNameFilter,
+          productionLine: lineFilter,
+          dateFrom: dateFromFilter,
+          dateTo: dateToFilter,
+        });
+        setStatistics(stats);
+      } catch (error) {
+        console.error("Error loading statistics:", error);
+      }
+    };
+
+    loadStatistics();
+  }, [
+    search,
+    severityFilter,
+    defectTypeFilter,
+    defectNameFilter,
+    lineFilter,
+    dateFromFilter,
+    dateToFilter,
+  ]);
 
   // Fetch defect types on component mount
   useEffect(() => {
@@ -59,6 +184,7 @@ const DefectList = () => {
         setDefectTypes(types);
       } catch (error) {
         console.error("Failed to load defect types");
+        setError("Failed to load defect types");
       }
     };
     loadDefectTypes();
@@ -72,6 +198,7 @@ const DefectList = () => {
         setDefectNames(names);
       } catch (error) {
         console.error("Failed to load defect names");
+        setError("Failed to load defect names");
       }
     };
     loadDefectNames();
@@ -81,7 +208,6 @@ const DefectList = () => {
   useEffect(() => {
     if (defectTypeFilter && defectNames.length > 0) {
       const filteredNames = defectNames.filter(
-        // (name) => name.defectType === defectTypeFilter
         (name) => name.type._id === defectTypeFilter
       );
       setAvailableDefectNames(filteredNames);
@@ -95,6 +221,7 @@ const DefectList = () => {
   useEffect(() => {
     const loadDefects = async () => {
       setIsLoading(true);
+      setError("");
       try {
         const data = await fetchDefects({
           page: pagination.page,
@@ -114,6 +241,7 @@ const DefectList = () => {
         setPagination((prev) => ({
           ...prev,
           totalPages: data.pagination.totalPages,
+          total: data.pagination.total,
         }));
 
         // Extract unique production lines from the data
@@ -125,6 +253,7 @@ const DefectList = () => {
         setProductionLines(uniqueLines);
       } catch (error) {
         console.error("Error loading defects:", error);
+        setError("Failed to load defects");
         toast.error("Failed to load defects");
       } finally {
         setIsLoading(false);
@@ -163,20 +292,29 @@ const DefectList = () => {
     setIsConfirmOpen(true);
   };
 
+  const closeConfirm = () => {
+    setDeleteId(null);
+    setIsConfirmOpen(false);
+  };
+
   const handleConfirmDelete = async () => {
     try {
       await deleteDefect(deleteId);
       setDefects(defects.filter((defect) => defect._id !== deleteId));
+      // toast.success("Defect deleted successfully");
     } catch (error) {
       console.error("Error deleting defect:", error);
+      toast.error("Failed to delete defect");
     } finally {
       setIsConfirmOpen(false);
+      setDeleteId(null);
     }
   };
 
   // Function to add new defect to the list
   const onDefectCreated = (newDefect) => {
     setDefects([newDefect, ...defects]);
+    // toast.success("Defect logged successfully");
   };
 
   // Function to update defect in the list
@@ -186,6 +324,7 @@ const DefectList = () => {
         defect._id === updatedDefect._id ? updatedDefect : defect
       )
     );
+    // toast.success("Defect updated successfully");
   };
 
   // Pagination handlers
@@ -193,22 +332,9 @@ const DefectList = () => {
     setPagination((prev) => ({ ...prev, page: newPage }));
   };
 
-  // Sort handlers
-  const handleSort = (field) => {
-    setSort((prev) => ({
-      field,
-      order: prev.field === field && prev.order === "asc" ? "desc" : "asc",
-    }));
-  };
-
   // View defect details
   const viewDefectDetails = (defect) => {
     navigate(`/defects/${defect._id}`);
-  };
-
-  // Handle search with debounce
-  const handleSearchChange = (event) => {
-    setSearch(event.target.value);
   };
 
   // Clear all filters
@@ -233,594 +359,751 @@ const DefectList = () => {
     dateFromFilter ||
     dateToFilter;
 
+  // Helper functions
+  const getSeverityColor = (severity) => {
+    switch (severity) {
+      case "High":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "Medium":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "Low":
+        return "bg-green-100 text-green-800 border-green-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
+  const getSeverityIcon = (severity) => {
+    switch (severity) {
+      case "High":
+        return AlertTriangle;
+      case "Medium":
+        return AlertTriangle;
+      case "Low":
+        return Info;
+      default:
+        return Info;
+    }
+  };
+
+// Statistics Card Component
+const StatCard = ({
+  title,
+  value,
+  icon: Icon,
+  trend,
+  trendValue,
+  color,
+  bgColor,
+  description,
+}) => (
+  <div
+    className={`${bgColor} backdrop-blur-sm rounded-2xl p-6 border border-white/20 dark:border-gray-700/20 shadow-sm hover:shadow-md dark:hover:shadow-lg transition-all duration-200`}
+  >
+    <div className="flex items-center justify-between mb-4">
+      <div className={`p-3 ${color} rounded-xl`}>
+        <Icon className="w-6 h-6 text-white" />
+      </div>
+      {trend && (
+        <div
+          className={`flex items-center gap-1 ${
+            trend === "up" 
+              ? "text-green-600 dark:text-green-400" 
+              : "text-red-600 dark:text-red-400"
+          }`}
+        >
+          {trend === "up" ? (
+            <TrendingUp className="w-4 h-4" />
+          ) : (
+            <TrendingDown className="w-4 h-4" />
+          )}
+          <span className="text-sm font-medium">{trendValue}</span>
+        </div>
+      )}
+    </div>
+    <div>
+      <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{value}</p>
+      <p className="text-sm text-gray-600 dark:text-gray-400">{title}</p>
+      {description && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{description}</p>
+      )}
+    </div>
+  </div>
+);
+
+  const ActiveFiltersDisplay = () => {
+    if (!hasActiveFilters) return null;
+
+    return (
+      <div className="bg-purple-50/80 backdrop-blur-sm rounded-2xl p-4 border border-purple-200/50 mb-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-purple-700">
+            Active filters:
+          </span>
+          {search && (
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
+              Search: "{search}"
+              <button
+                onClick={() => setSearch("")}
+                className="text-purple-600 hover:text-purple-800"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {severityFilter && (
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
+              Severity: {severityFilter}
+              <button
+                onClick={() => setSeverityFilter("")}
+                className="text-purple-600 hover:text-purple-800"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {defectTypeFilter && (
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
+              Type: {defectTypes.find((t) => t._id === defectTypeFilter)?.name}
+              <button
+                onClick={() => setDefectTypeFilter("")}
+                className="text-purple-600 hover:text-purple-800"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {lineFilter && (
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
+              Line: {lineFilter}
+              <button
+                onClick={() => setLineFilter("")}
+                className="text-purple-600 hover:text-purple-800"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          <button
+            onClick={clearAllFilters}
+            className="text-sm text-purple-600 hover:text-purple-800 font-medium"
+          >
+            Clear all
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   if (isLoading && defects.length === 0) {
     return <Spinner />;
   }
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Defects Management</h1>
-        <button
-          onClick={openModal}
-          className="px-6 py-2 text-white font-semibold rounded-md shadow-md hover:opacity-90 transition duration-200"
-          style={{ backgroundColor: currentColor }}
-        >
-          Create New Defect
-        </button>
+      <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-white/20 dark:border-gray-700/20 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-600 dark:bg-red-700 rounded-xl">
+                  <AlertTriangle className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Defect Management
+                  </h1>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Track and manage production defects
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={clearAllFilters}
+                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm text-gray-900 dark:text-white"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </button>
+              <button className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-xl hover:bg-green-700 dark:hover:bg-green-800 transition-colors shadow-sm">
+                <Download className="w-4 h-4" />
+                Export Report
+              </button>
+              <button
+                onClick={openModal}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-xl hover:bg-red-700 dark:hover:bg-red-800 transition-colors shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Log Defect
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Filters Section */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-700">Filters</h2>
-          {hasActiveFilters && (
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard
+            title="Total Defects"
+            value={statistics.totalDefects.toLocaleString()}
+            icon={Package}
+            trend="down"
+            trendValue="-5%"
+            color="bg-blue-500 dark:bg-blue-600"
+            bgColor="bg-blue-50/80 dark:bg-blue-900/20"
+            description="All logged defects"
+          />
+          <StatCard
+            title="Total Count"
+            value={statistics.totalDefectCount.toLocaleString()}
+            icon={BarChart3}
+            trend="down"
+            trendValue="-8%"
+            color="bg-purple-500 dark:bg-purple-600"
+            bgColor="bg-purple-50/80 dark:bg-purple-900/20"
+            description="Sum of all defect counts"
+          />
+          <StatCard
+            title="Critical Issues"
+            value={statistics.criticalDefects.toString()}
+            icon={AlertTriangle}
+            trend="down"
+            trendValue="-12%"
+            color="bg-red-500 dark:bg-red-600"
+            bgColor="bg-red-50/80 dark:bg-red-900/20"
+            description="High priority defects"
+          />
+          <StatCard
+            title="Avg per Order"
+            value={statistics.avgDefectsPerOrder.toFixed(1)}
+            icon={Target}
+            trend="up"
+            trendValue="+2.1"
+            color="bg-orange-500 dark:bg-orange-600"
+            bgColor="bg-orange-50/80 dark:bg-orange-900/20"
+            description="Defects per order average"
+          />
+        </div>
+
+        {/* Quick Stats Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-4 border border-white/20 dark:border-gray-700/20 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Recent Defects
+                  </p>
+                  <div className="relative group">
+                    <Info className="w-4 h-4 text-gray-400 dark:text-gray-500 cursor-pointer" />
+                    <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block text-xs bg-gray-800 dark:bg-gray-700 text-white px-2 py-1 rounded shadow-lg z-10 whitespace-nowrap">
+                      Defects logged in last 3 days
+                    </div>
+                  </div>
+                </div>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {statistics.recentDefects}
+                </p>
+              </div>
+              <Clock className="w-8 h-8 text-blue-500 dark:text-blue-400" />
+            </div>
+          </div>
+          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-4 border border-white/20 dark:border-gray-700/20 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Active Lines
+                  </p>
+                  <div className="relative group">
+                    <Info className="w-4 h-4 text-gray-400 dark:text-gray-500 cursor-pointer" />
+                    <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block text-xs bg-gray-800 dark:bg-gray-700 text-white px-2 py-1 rounded shadow-lg z-10 whitespace-nowrap">
+                      Production lines with defects
+                    </div>
+                  </div>
+                </div>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                  {PRODUCTION_LINES.length}
+                </p>
+              </div>
+              <Factory className="w-8 h-8 text-green-500 dark:text-green-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Search and Filter Bar */}
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 dark:border-gray-700/20 shadow-sm mb-8">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
+              <input
+                type="text"
+                placeholder="Search defects by order, type, or description..."
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 bg-white/50 dark:bg-gray-700/50 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
             <button
-              onClick={clearAllFilters}
-              className="flex items-center px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition duration-200"
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+              className="flex items-center gap-2 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
-              <X className="w-4 h-4 mr-1" />
-              Clear All
+              <Filter className="w-5 h-5" />
+              Filters
+              {hasActiveFilters && (
+                <span className="w-2 h-2 bg-red-500 dark:bg-red-400 rounded-full"></span>
+              )}
             </button>
+          </div>
+
+          {/* Filter Panel */}
+          {isFilterOpen && (
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Severity
+                  </label>
+                  <select
+                    value={severityFilter}
+                    onChange={(e) => setSeverityFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white"
+                  >
+                    <option value="">All Severities</option>
+                    <option value="High">Critical</option>
+                    <option value="Medium">Major</option>
+                    <option value="Low">Minor</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Defect Type
+                  </label>
+                  <select
+                    value={defectTypeFilter}
+                    onChange={(e) => setDefectTypeFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white"
+                  >
+                    <option value="">All Types</option>
+                    {defectTypes.map((type) => (
+                      <option key={type._id} value={type._id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Defect Name
+                  </label>
+                  <select
+                    value={defectNameFilter}
+                    onChange={(e) => setDefectNameFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white disabled:opacity-50"
+                    disabled={!defectTypeFilter}
+                  >
+                    <option value="">All Names</option>
+                    {availableDefectNames.map((name) => (
+                      <option key={name._id} value={name._id}>
+                        {name.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Production Line
+                  </label>
+                  <select
+                    value={lineFilter}
+                    onChange={(e) => setLineFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white"
+                  >
+                    <option value="">All Lines</option>
+                    {PRODUCTION_LINES.map((line) => (
+                      <option key={line} value={line}>
+                        {line}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Date From
+                  </label>
+                  <input
+                    type="date"
+                    value={dateFromFilter}
+                    onChange={(e) => setDateFromFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Date To
+                  </label>
+                  <input
+                    type="date"
+                    value={dateToFilter}
+                    onChange={(e) => setDateToFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400 bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white"
+                  />
+                </div>
+              </div>
+            </div>
           )}
-        </div>
-
-        {/* First Row of Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          {/* Search Bar */}
-          <div className="lg:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Search
-            </label>
-            <input
-              type="text"
-              placeholder="Search defects by description, order no..."
-              value={search}
-              onChange={handleSearchChange}
-              className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-          </div>
-
-          {/* Severity Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Severity
-            </label>
-            <select
-              value={severityFilter}
-              onChange={(e) => setSeverityFilter(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            >
-              <option value="">All Severities</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
-            </select>
-          </div>
-
-          {/* Production Line Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Production Line
-            </label>
-            <select
-              value={lineFilter}
-              onChange={(e) => setLineFilter(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            >
-              <option value="">All Lines</option>
-              {/* {productionLines.map((line) => ( */}
-              {PRODUCTION_LINES.map((line) => (
-                <option key={line} value={line}>
-                  {/* Line {line} */}
-                  {line}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Second Row of Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          {/* Defect Type Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Defect Type
-            </label>
-            <select
-              value={defectTypeFilter}
-              onChange={(e) => setDefectTypeFilter(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            >
-              <option value="">All Defect Types</option>
-              {defectTypes.map((type) => (
-                <option key={type._id} value={type._id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Defect Name Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Defect Name
-            </label>
-            <select
-              value={defectNameFilter}
-              onChange={(e) => setDefectNameFilter(e.target.value)}
-              disabled={!defectTypeFilter}
-              className={`w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                !defectTypeFilter ? "bg-gray-100 cursor-not-allowed" : ""
-              }`}
-            >
-              <option value="">
-                {defectTypeFilter
-                  ? "All Defect Names"
-                  : "Select Defect Type First"}
-              </option>
-              {availableDefectNames.map((name) => (
-                <option key={name._id} value={name._id}>
-                  {name.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Date From Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Date From
-            </label>
-            <div className="relative">
-              <input
-                type="date"
-                value={dateFromFilter}
-                onChange={(e) => setDateFromFilter(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-              <Calendar className="absolute right-3 top-2.5 h-5 w-5 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Date To Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Date To
-            </label>
-            <div className="relative">
-              <input
-                type="date"
-                value={dateToFilter}
-                onChange={(e) => setDateToFilter(e.target.value)}
-                min={dateFromFilter}
-                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-              <Calendar className="absolute right-3 top-2.5 h-5 w-5 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
         </div>
 
         {/* Active Filters Display */}
-        {hasActiveFilters && (
-          <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-200">
-            <span className="text-sm text-gray-600">Active filters:</span>
-            {search && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                Search: {search}
-              </span>
-            )}
-            {severityFilter && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                Severity: {severityFilter}
-              </span>
-            )}
-            {defectTypeFilter && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                Type:{" "}
-                {defectTypes.find((t) => t._id === defectTypeFilter)?.name}
-              </span>
-            )}
-            {defectNameFilter && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                Name:{" "}
-                {
-                  availableDefectNames.find((n) => n._id === defectNameFilter)
-                    ?.name
-                }
-              </span>
-            )}
-            {lineFilter && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                Line: {lineFilter}
-              </span>
-            )}
-            {dateFromFilter && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-pink-100 text-pink-800">
-                From: {dateFromFilter}
-              </span>
-            )}
-            {dateToFilter && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-pink-100 text-pink-800">
-                To: {dateToFilter}
-              </span>
-            )}
+        <ActiveFiltersDisplay />
+
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-2xl p-4 mb-6">
+            <p className="text-red-700 dark:text-red-400 font-medium text-center">
+              {error}
+            </p>
           </div>
+        )}
+
+        {/* Loading State */}
+        {isLoading ? (
+          <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-3xl p-12 shadow-2xl border border-white/20 dark:border-gray-700/20 text-center">
+            <div className="inline-flex items-center gap-3 text-red-600 dark:text-red-400">
+              <div className="w-8 h-8 border-4 border-red-600 dark:border-red-400 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-xl font-medium">Loading defects...</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Defects Table */}
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl border border-white/20 dark:border-gray-700/20 shadow-sm overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-sm">
+                  <tr>
+                    <SortableHeader sortKey="orderNo">
+                      Order & Defect
+                    </SortableHeader>
+                    <SortableHeader sortKey="defectType">
+                      Type & Category
+                    </SortableHeader>
+                    <SortableHeader sortKey="severity">
+                      Severity
+                    </SortableHeader>
+                    <SortableHeader sortKey="productionLine">
+                      Production Info
+                    </SortableHeader>
+                    <SortableHeader sortKey="defectCount">
+                      Count & Date
+                    </SortableHeader>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                  {defects.map((defect) => {
+                    const SeverityIcon = getSeverityIcon(defect.severity);
+                    return (
+                      <tr
+                        key={defect._id}
+                        className="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors group"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-gray-900 dark:text-white">
+                                {defect.orderId?.orderNo || "N/A"}
+                              </span>
+                              <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 rounded-full">
+                                {defect?.orderId?.season || "N/A"}
+                              </span>
+                            </div>
+                            <div className="font-medium text-gray-900 dark:text-white">
+                              {defect.defectName?.name || "N/A"}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              {defect.description || "No description"}
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="font-medium text-gray-900 dark:text-white">
+                              {defect.defectType?.name || "N/A"}
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              {defect.holesOrOperation || "N/A"}
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium border ${getSeverityColor(
+                              defect.severity
+                            )}`}
+                          >
+                            <SeverityIcon className="w-4 h-4" />
+                            {defect.severity}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Factory className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {defect.productionLine || "N/A"}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                                {defect.defectCount}
+                              </span>
+                              <span className="text-sm text-gray-500 dark:text-gray-400">
+                                units
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                              <Calendar className="w-4 h-4" />
+                              {new Date(
+                                defect.detectedDate
+                              ).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <Menu
+                            as="div"
+                            className="relative inline-block text-left"
+                          >
+                            <Menu.Button className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                              <MoreVertical className="w-4 h-4" />
+                            </Menu.Button>
+                            <Transition
+                              as={Fragment}
+                              enter="transition ease-out duration-100"
+                              enterFrom="transform opacity-0 scale-95"
+                              enterTo="transform opacity-100 scale-100"
+                              leave="transition ease-in duration-75"
+                              leaveFrom="transform opacity-100 scale-100"
+                              leaveTo="transform opacity-0 scale-95"
+                            >
+                              <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700 rounded-xl shadow-lg ring-1 ring-black ring-opacity-5 dark:ring-gray-600 focus:outline-none z-50">
+                                <div className="px-1 py-1">
+                                  <Menu.Item>
+                                    {({ active }) => (
+                                      <button
+                                        onClick={() =>
+                                          viewDefectDetails(defect)
+                                        }
+                                        className={`${
+                                          active
+                                            ? "bg-gray-100 dark:bg-gray-700"
+                                            : ""
+                                        } group flex rounded-lg items-center w-full px-2 py-2 text-sm text-gray-700 dark:text-gray-300`}
+                                      >
+                                        <Eye className="w-4 h-4 mr-2" />
+                                        View Details
+                                      </button>
+                                    )}
+                                  </Menu.Item>
+                                  <Menu.Item>
+                                    {({ active }) => (
+                                      <button
+                                        onClick={() => openEditModal(defect)}
+                                        className={`${
+                                          active
+                                            ? "bg-gray-100 dark:bg-gray-700"
+                                            : ""
+                                        } group flex rounded-lg items-center w-full px-2 py-2 text-sm text-gray-700 dark:text-gray-300`}
+                                      >
+                                        <Edit className="w-4 h-4 mr-2" />
+                                        Edit Defect
+                                      </button>
+                                    )}
+                                  </Menu.Item>
+                                  <Menu.Item>
+                                    {({ active }) => (
+                                      <button
+                                        onClick={() =>
+                                          openDeleteConfirm(defect._id)
+                                        }
+                                        className={`${
+                                          active
+                                            ? "bg-red-50 dark:bg-red-900/20"
+                                            : ""
+                                        } group flex rounded-lg items-center w-full px-2 py-2 text-sm text-red-600 dark:text-red-400`}
+                                      >
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Delete
+                                      </button>
+                                    )}
+                                  </Menu.Item>
+                                </div>
+                              </Menu.Items>
+                            </Transition>
+                          </Menu>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* Pagination */}
+              {defects.length > 0 && (
+                <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-600 flex items-center justify-between">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Showing{" "}
+                    <span className="font-medium">
+                      {(pagination.page - 1) * pagination.limit + 1}
+                    </span>{" "}
+                    to{" "}
+                    <span className="font-medium">
+                      {Math.min(
+                        pagination.page * pagination.limit,
+                        pagination.total
+                      )}
+                    </span>{" "}
+                    of <span className="font-medium">{pagination.total}</span>{" "}
+                    defects
+                  </div>
+                  <div className="flex items-center">
+                    <label className="text-sm text-gray-700 dark:text-gray-300 mr-2">
+                      Items per page:
+                    </label>
+                    <select
+                      value={pagination.limit}
+                      onChange={(e) =>
+                        setPagination({
+                          ...pagination,
+                          page: 1,
+                          limit: Number(e.target.value),
+                        })
+                      }
+                      className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        handlePageChange(Math.max(1, pagination.page - 1))
+                      }
+                      disabled={pagination.page === 1}
+                      className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 text-gray-700 dark:text-gray-300"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from(
+                        { length: Math.min(5, pagination.totalPages) },
+                        (_, i) => {
+                          let pageNum;
+                          if (pagination.totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (pagination.page <= 3) {
+                            pageNum = i + 1;
+                          } else if (
+                            pagination.page >=
+                            pagination.totalPages - 2
+                          ) {
+                            pageNum = pagination.totalPages - 4 + i;
+                          } else {
+                            pageNum = pagination.page - 2 + i;
+                          }
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => handlePageChange(pageNum)}
+                              className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                pagination.page === pageNum
+                                  ? "bg-gradient-to-r from-red-600 to-red-700 dark:from-red-700 dark:to-red-800 text-white"
+                                  : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                              } transition-colors duration-200`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        }
+                      )}
+
+                      {pagination.totalPages > 5 &&
+                        pagination.page < pagination.totalPages - 2 && (
+                          <>
+                            <span className="px-1 text-gray-500 dark:text-gray-400">
+                              ...
+                            </span>
+                            <button
+                              onClick={() =>
+                                handlePageChange(pagination.totalPages)
+                              }
+                              className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                pagination.page === pagination.totalPages
+                                  ? "bg-gradient-to-r from-red-600 to-red-700 dark:from-red-700 dark:to-red-800 text-white"
+                                  : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                              } transition-colors duration-200`}
+                            >
+                              {pagination.totalPages}
+                            </button>
+                          </>
+                        )}
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        handlePageChange(
+                          Math.min(pagination.totalPages, pagination.page + 1)
+                        )
+                      }
+                      disabled={pagination.page === pagination.totalPages}
+                      className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 text-gray-700 dark:text-gray-300"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {defects.length === 0 && !isLoading && (
+                <div className="text-center py-12">
+                  <AlertTriangle className="mx-auto w-12 h-12 text-gray-400 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                    No defects found
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Try adjusting your search or filter criteria.
+                  </p>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 
-      {/* Defects Table */}
-      {/* <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="overflow-x-auto"> */}
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th
-              onClick={() => handleSort("orderId.orderNo")}
-              className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
-            >
-              Order No{" "}
-              {sort.field === "orderId.orderNo" &&
-                (sort.order === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("defectName.name")}
-              className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
-            >
-              Defect Name{" "}
-              {sort.field === "defectName.name" &&
-                (sort.order === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("defectType.name")}
-              className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
-            >
-              Defect Type{" "}
-              {sort.field === "defectType.name" &&
-                (sort.order === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("defectprocess.name")}
-              className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
-            >
-              Defect Position{" "}
-              {sort.field === "defectprocess.name" &&
-                (sort.order === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("severity")}
-              className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
-            >
-              Severity{" "}
-              {sort.field === "severity" && (sort.order === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("detectedDate")}
-              className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
-            >
-              Detected Date{" "}
-              {sort.field === "detectedDate" &&
-                (sort.order === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("status")}
-              className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
-            >
-              Status{" "}
-              {sort.field === "status" && (sort.order === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("defectCount")}
-              className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
-            >
-              Count{" "}
-              {sort.field === "defectCount" &&
-                (sort.order === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("productionLine")}
-              className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
-            >
-              Line{" "}
-              {sort.field === "productionLine" &&
-                (sort.order === "asc" ? "↑" : "↓")}
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {defects.length === 0 ? (
-            <tr>
-              <td colSpan="10" className="px-6 py-4 text-center text-gray-500">
-                No defects found. Try adjusting your filters or create a new
-                defect.
-              </td>
-            </tr>
-          ) : (
-            defects.map((defect) => (
-              <tr
-                key={defect._id}
-                className="hover:bg-gray-50 transition duration-150 ease-in-out"
-              >
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {defect.orderId?.orderNo || "N/A"}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {defect.defectName?.name || "N/A"}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {defect.defectType?.name || "N/A"}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {defect.defectProcess?.name || "N/A"}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      defect.severity === "High"
-                        ? "bg-red-100 text-red-800"
-                        : defect.severity === "Medium"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-green-100 text-green-800"
-                    }`}
-                  >
-                    {defect.severity}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {defect.detectedDate
-                    ? new Date(defect.detectedDate).toLocaleDateString()
-                    : "N/A"}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      defect.status === "Resolved"
-                        ? "bg-green-100 text-green-800"
-                        : defect.status === "In Progress"
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {defect.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {defect.defectCount || "0"}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {defect.productionLine || "N/A"}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <Menu as="div" className="relative inline-block text-left">
-                    <div>
-                      <Menu.Button className="inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <MoreVertical className="w-5 h-5" />
-                      </Menu.Button>
-                    </div>
-
-                    <Transition
-                      as={Fragment}
-                      enter="transition ease-out duration-100"
-                      enterFrom="transform opacity-0 scale-95"
-                      enterTo="transform opacity-100 scale-100"
-                      leave="transition ease-in duration-75"
-                      leaveFrom="transform opacity-100 scale-100"
-                      leaveTo="transform opacity-0 scale-95"
-                    >
-                      <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                        <div className="py-1">
-                          <Menu.Item>
-                            {({ active }) => (
-                              <button
-                                onClick={() => viewDefectDetails(defect)}
-                                className={`${
-                                  active
-                                    ? "bg-gray-100 text-gray-900"
-                                    : "text-gray-700"
-                                } group flex w-full items-center px-4 py-2 text-sm`}
-                              >
-                                <Eye className="mr-3 h-4 w-4" />
-                                View Details
-                              </button>
-                            )}
-                          </Menu.Item>
-                          <Menu.Item>
-                            {({ active }) => (
-                              <button
-                                onClick={() => openEditModal(defect)}
-                                className={`${
-                                  active
-                                    ? "bg-gray-100 text-gray-900"
-                                    : "text-gray-700"
-                                } group flex w-full items-center px-4 py-2 text-sm`}
-                              >
-                                <Edit className="mr-3 h-4 w-4" />
-                                Edit
-                              </button>
-                            )}
-                          </Menu.Item>
-                          <Menu.Item>
-                            {({ active }) => (
-                              <button
-                                onClick={() => openDeleteConfirm(defect._id)}
-                                className={`${
-                                  active
-                                    ? "bg-gray-100 text-gray-900"
-                                    : "text-gray-700"
-                                } group flex w-full items-center px-4 py-2 text-sm`}
-                              >
-                                <Trash2 className="mr-3 h-4 w-4 text-red-500" />
-                                Delete
-                              </button>
-                            )}
-                          </Menu.Item>
-                        </div>
-                      </Menu.Items>
-                    </Transition>
-                  </Menu>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-      {/* </div>
-      </div> */}
-
-      {/* Pagination Controls */}
-      {defects.length > 0 && (
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-6 rounded-lg shadow-md">
-          <div className="flex-1 flex justify-between sm:hidden">
-            <button
-              onClick={() => handlePageChange(pagination.page - 1)}
-              disabled={pagination.page === 1}
-              className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                pagination.page === 1
-                  ? "text-gray-500 bg-gray-100 cursor-not-allowed"
-                  : "text-gray-700 bg-white hover:bg-gray-50"
-              }`}
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => handlePageChange(pagination.page + 1)}
-              disabled={pagination.page === pagination.totalPages}
-              className={`ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                pagination.page === pagination.totalPages
-                  ? "text-gray-500 bg-gray-100 cursor-not-allowed"
-                  : "text-gray-700 bg-white hover:bg-gray-50"
-              }`}
-            >
-              Next
-            </button>
-          </div>
-          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-gray-700">
-                Showing page{" "}
-                <span className="font-medium">{pagination.page}</span> of{" "}
-                <span className="font-medium">{pagination.totalPages}</span>
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center">
-                <label className="text-sm text-gray-700 mr-2">
-                  Items per page:
-                </label>
-                <select
-                  value={pagination.limit}
-                  onChange={(e) =>
-                    setPagination({
-                      ...pagination,
-                      page: 1,
-                      limit: Number(e.target.value),
-                    })
-                  }
-                  className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
-              </div>
-              <nav
-                className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
-                aria-label="Pagination"
-              >
-                <button
-                  onClick={() => handlePageChange(1)}
-                  disabled={pagination.page === 1}
-                  className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium ${
-                    pagination.page === 1
-                      ? "text-gray-300 cursor-not-allowed"
-                      : "text-gray-500 hover:bg-gray-50"
-                  }`}
-                >
-                  First
-                </button>
-                <button
-                  onClick={() => handlePageChange(pagination.page - 1)}
-                  disabled={pagination.page === 1}
-                  className={`relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium ${
-                    pagination.page === 1
-                      ? "text-gray-300 cursor-not-allowed"
-                      : "text-gray-500 hover:bg-gray-50"
-                  }`}
-                >
-                  Previous
-                </button>
-
-                {Array.from(
-                  { length: Math.min(5, pagination.totalPages) },
-                  (_, i) => {
-                    const totalPageButtons = 5;
-                    let startPage = Math.max(
-                      1,
-                      pagination.page - Math.floor(totalPageButtons / 2)
-                    );
-                    let endPage = Math.min(
-                      pagination.totalPages,
-                      startPage + totalPageButtons - 1
-                    );
-
-                    if (endPage - startPage < totalPageButtons - 1) {
-                      startPage = Math.max(1, endPage - totalPageButtons + 1);
-                    }
-
-                    const pageNumber = startPage + i;
-                    if (pageNumber <= endPage) {
-                      return (
-                        <button
-                          key={pageNumber}
-                          onClick={() => handlePageChange(pageNumber)}
-                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                            pagination.page === pageNumber
-                              ? "z-10 bg-indigo-50 border-indigo-500 text-indigo-600"
-                              : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
-                          }`}
-                        >
-                          {pageNumber}
-                        </button>
-                      );
-                    }
-                    return null;
-                  }
-                )}
-
-                <button
-                  onClick={() => handlePageChange(pagination.page + 1)}
-                  disabled={pagination.page === pagination.totalPages}
-                  className={`relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium ${
-                    pagination.page === pagination.totalPages
-                      ? "text-gray-300 cursor-not-allowed"
-                      : "text-gray-500 hover:bg-gray-50"
-                  }`}
-                >
-                  Next
-                </button>
-                <button
-                  onClick={() => handlePageChange(pagination.totalPages)}
-                  disabled={pagination.page === pagination.totalPages}
-                  className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium ${
-                    pagination.page === pagination.totalPages
-                      ? "text-gray-300 cursor-not-allowed"
-                      : "text-gray-500 hover:bg-gray-50"
-                  }`}
-                >
-                  Last
-                </button>
-              </nav>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create/Edit Defect Modal */}
+      {/* Log Defect Modal */}
       {isModalOpen && (
         <LogDefectModal
           closeModal={closeModal}
@@ -831,12 +1114,12 @@ const DefectList = () => {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Confirmation Modal */}
       {isConfirmOpen && (
         <ConfirmationModal
           message="Are you sure you want to delete this defect?"
           onConfirm={handleConfirmDelete}
-          onCancel={() => setIsConfirmOpen(false)}
+          onCancel={closeConfirm}
         />
       )}
     </div>

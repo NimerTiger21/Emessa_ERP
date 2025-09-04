@@ -7,10 +7,12 @@ import { IoClose } from "react-icons/io5";
 import {
   fetchBrands,
   fetchCustomers,
-  fetchFabrics,
-  fetchFabricSuppliers,
   fetchStyles,
 } from "../../services/masterDataService";
+import {
+  fetchFabrics,
+  fetchFabricSuppliers,
+} from "../../services/fabricService";
 import { ShoppingCart, ClipboardList, AlertCircle } from "lucide-react";
 
 const OrderModal = ({
@@ -142,9 +144,9 @@ const OrderModal = ({
 
       setFormData(mappedEditOrder);
       setIsInitialized(true);
-      console.log("Initialized formData for editing:", mappedEditOrder);
-      console.log("Available style numbers:", styleNumbers);
-      console.log("Selected style:", selectedStyle);
+      // console.log("Initialized formData for editing:", mappedEditOrder);
+      // console.log("Available style numbers:", styleNumbers);
+      // console.log("Selected style:", selectedStyle);
     }
   }, [editOrder, customers, brands, styles, fabrics, fabricSuppliers, isInitialized]);
 
@@ -311,6 +313,8 @@ const OrderModal = ({
   const validateForm = () => {
     let newErrors = {};
     if (!formData.orderNo) newErrors.orderNo = "Order ID is required.";
+    if (!formData.styleNo) newErrors.styleNo = "Style No is required.";
+    if (!formData.fabric) newErrors.fabric = "Fabric is required.";
     if (!formData.customer) newErrors.customer = "Please select a customer.";
     if (!formData.orderQty || formData.orderQty <= 0)
       newErrors.orderQty = "Quantity must be greater than zero.";
@@ -336,11 +340,13 @@ const OrderModal = ({
       if (editOrder) {
         const updatedOrder = await updateOrder(editOrder._id, payload);
         updateOrderInList(updatedOrder.populatedOrder);
-        toast.success("Order updated successfully");
+        // toast.success("Order updated successfully");
+        toast.success(updatedOrder.message || "Order updated successfully");
       } else {
         const newOrder = await createOrder(payload);
         onOrderCreated(newOrder.populatedOrder);
-        toast.success("Order created successfully");
+        // toast.success("Order created successfully");
+        toast.success(newOrder.message || "Order created successfully");
       }
       closeModal();
     } catch (error) {
@@ -440,6 +446,7 @@ const OrderModal = ({
                   onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="E.g., 2024"
+                  required
                 />
               </div>
 
@@ -542,7 +549,7 @@ const OrderModal = ({
                     !formData.style || availableStyleNumbers.length === 0
                       ? "bg-gray-100 cursor-not-allowed"
                       : "border-gray-300"
-                  }`}
+                  } ${errors.styleNo ? "border-red-500" : "border-gray-300"}`}
                 >
                   <option value="">
                     {!formData.style
@@ -557,6 +564,12 @@ const OrderModal = ({
                     </option>
                   ))}
                 </select>
+                {errors.styleNo && (
+                  <p className="text-red-500 text-xs mt-1 flex items-center">
+                    <AlertCircle className="w-4 h-4 mr-1" />
+                    {errors.styleNo}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -619,7 +632,9 @@ const OrderModal = ({
                   name="fabric"
                   value={formData.fabric?._id || ""}
                   onChange={handleFabricChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className={`w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    errors.fabric ? "border-red-500" : "border-gray-300"
+                  }`}
                 >
                   <option value="">Select a Fabric</option>
                   {fabrics.map((fabric) => (
@@ -628,6 +643,12 @@ const OrderModal = ({
                     </option>
                   ))}
                 </select>
+                {errors.fabric && (
+                  <p className="text-red-500 text-xs mt-1 flex items-center">
+                    <AlertCircle className="w-4 h-4 mr-1" />
+                    {errors.fabric}
+                  </p>
+                )}
               </div>
 
               <div>

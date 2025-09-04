@@ -11,6 +11,7 @@ const laundryStepRoutes = require("./routes/laundryStepRoutes");
 const laundryProcessRoutes = require("./routes/laundryProcessRoutes");
 const chemicalItemRoutes = require("./routes/chemicalItemRoutes");
 const stepItemRoutes = require("./routes/stepItemRoutes");
+const productionRoutes = require("./routes/productionRoutes");
 
 const cookieParser = require("cookie-parser");
 
@@ -61,6 +62,9 @@ app.use("/api/laundry-processes", laundryProcessRoutes);
 app.use("/api/chemical-items", chemicalItemRoutes);
 app.use("/api/step-items", stepItemRoutes);
 app.use("/api/master-data", require("./routes/masterDataRoutes"));
+app.use("/api/fabrics", require("./routes/fabricRoutes"));
+
+app.use("/api/production", productionRoutes);
 
 // Serve static files (e.g., uploads)
 app.use("/uploads", express.static("uploads"));

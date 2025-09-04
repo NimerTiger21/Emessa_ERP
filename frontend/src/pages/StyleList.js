@@ -113,7 +113,8 @@ const StyleList = () => {
       //toast.success("Style deleted successfully.");
       loadStyles();
     } catch (error) {
-      toast.error("Error deleting style.");
+      // toast.error("Error deleting style.");
+      toast.error(error.response?.data?.message || "Error deleting style.");
     } finally {
       setIsConfirmOpen(false); // Close confirmation modal
     }

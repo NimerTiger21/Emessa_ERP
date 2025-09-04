@@ -101,6 +101,26 @@ export const links = [
         name: "pyramid",
         icon: <GiLouvrePyramid />,
       },
+      {
+        name: "Planning",
+        icon: <GiLouvrePyramid />,
+      },
+      {
+        name: "Planning2",
+        icon: <GiLouvrePyramid />,
+      },
+      {
+        name: "Planning3",
+        icon: <GiLouvrePyramid />,
+      },
+      {
+        name: "Planning4",
+        icon: <GiLouvrePyramid />,
+      },
+      {
+        name: "Planning5",
+        icon: <GiLouvrePyramid />,
+      },
     ],
   },
 ];
